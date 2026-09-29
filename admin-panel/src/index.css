@@ -1,0 +1,269 @@
+@import "tailwindcss";
+
+:root {
+  --admin-page: #f3f7f5;
+  --admin-page-gradient: linear-gradient(145deg, #f8fbfa 0%, #eef6f2 52%, #f7faf9 100%);
+  --admin-surface: #ffffff;
+  --admin-surface-soft: #f5f9f7;
+  --admin-surface-gradient: linear-gradient(145deg, #ffffff 0%, #fbfdfc 100%);
+  --admin-control-gradient: linear-gradient(180deg, #fbfdfc 0%, #f5f9f7 100%);
+  --admin-header-gradient: linear-gradient(110deg, rgb(255 255 255 / 98%) 0%, rgb(244 250 247 / 98%) 60%, rgb(235 247 241 / 98%) 100%);
+  --admin-sidebar-gradient: linear-gradient(180deg, #ffffff 0%, #f7fbf9 55%, #eef6f2 100%);
+  --admin-border: #dce7e3;
+  --admin-border-strong: #d5e5df;
+  --admin-text: #16322c;
+  --admin-text-strong: #12342c;
+  --admin-text-secondary: #304942;
+  --admin-text-muted: #71827d;
+  --admin-text-faint: #96a6a1;
+  --admin-hover: #eff7f3;
+  --admin-brand: #0a4a3c;
+  --admin-shadow: 0 10px 30px rgb(18 50 43 / 5%), 0 1px 2px rgb(18 50 43 / 6%);
+  --admin-header-shadow: 0 8px 28px rgb(18 50 43 / 7%);
+  color: var(--admin-text);
+  background: var(--admin-page);
+  font-family: "Segoe UI Variable Text", "Aptos", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="dark"] {
+  --admin-page: #0d1714;
+  --admin-page-gradient: linear-gradient(145deg, #0d1714 0%, #111f1b 52%, #0b1512 100%);
+  --admin-surface: #15231f;
+  --admin-surface-soft: #1a2b26;
+  --admin-surface-gradient: linear-gradient(145deg, #182823 0%, #12201c 100%);
+  --admin-control-gradient: linear-gradient(180deg, #1b2d27 0%, #16251f 100%);
+  --admin-header-gradient: linear-gradient(110deg, rgb(19 33 28 / 98%) 0%, rgb(16 39 32 / 98%) 65%, rgb(18 47 38 / 98%) 100%);
+  --admin-sidebar-gradient: linear-gradient(180deg, #14231e 0%, #101d19 58%, #0d1815 100%);
+  --admin-border: #2a4038;
+  --admin-border-strong: #304a41;
+  --admin-text: #e7f0ed;
+  --admin-text-strong: #f2f7f5;
+  --admin-text-secondary: #c1d0cb;
+  --admin-text-muted: #94a8a1;
+  --admin-text-faint: #71877f;
+  --admin-hover: #1d342c;
+  --admin-brand: #dff5ec;
+  --admin-shadow: 0 14px 36px rgb(0 0 0 / 20%), 0 1px 1px rgb(255 255 255 / 3%);
+  --admin-header-shadow: 0 10px 30px rgb(0 0 0 / 20%);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--admin-text);
+  background: var(--admin-page-gradient);
+  transition: color 180ms ease, background-color 180ms ease;
+}
+
+button, input, select, textarea { font: inherit; }
+::selection { color: #082f28; background: #dff7a5; }
+
+.admin-shell,
+.login-shell { background: var(--admin-page-gradient); }
+
+.admin-header {
+  border-color: var(--admin-border-strong);
+  background: var(--admin-header-gradient);
+  box-shadow: var(--admin-header-shadow);
+}
+
+.admin-sidebar {
+  border-color: var(--admin-border-strong);
+  background: var(--admin-sidebar-gradient);
+  box-shadow: 8px 0 28px rgb(18 50 43 / 4%);
+}
+
+.login-card {
+  border-color: var(--admin-border-strong);
+  background: var(--admin-surface-gradient);
+  box-shadow: 0 26px 70px rgb(10 55 46 / 13%);
+}
+
+.theme-toggle {
+  border-color: var(--admin-border);
+  color: var(--admin-text-secondary);
+  background: var(--admin-surface-gradient);
+  box-shadow: 0 2px 7px rgb(18 50 43 / 5%);
+}
+
+.theme-toggle:hover {
+  color: #38a581;
+  background: var(--admin-hover);
+}
+
+.admin-page-header {
+  background: linear-gradient(100deg, rgb(11 90 72 / 10%) 0%, rgb(201 242 74 / 8%) 44%, transparent 82%);
+}
+
+[data-theme="dark"] .admin-page-header {
+  background: linear-gradient(100deg, rgb(48 157 122 / 16%) 0%, rgb(201 242 74 / 7%) 44%, transparent 82%);
+}
+
+.admin-surface {
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  background: var(--admin-surface-gradient);
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-control {
+  border: 1px solid var(--admin-border);
+  border-radius: 6px;
+  background: var(--admin-control-gradient);
+  color: var(--admin-text-secondary);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.admin-display {
+  font-family: "Segoe UI Variable Display", "Aptos Display", "Segoe UI", sans-serif;
+  font-weight: 720;
+}
+
+.admin-brand-word {
+  font-family: "Segoe UI Variable Display", "Aptos Display", "Segoe UI", sans-serif;
+  font-weight: 800;
+  color: var(--admin-brand);
+}
+
+.admin-primary-button {
+  border: 1px solid rgb(5 70 56 / 22%);
+  background: linear-gradient(135deg, #0a4a3c 0%, #0d6a54 58%, #118166 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgb(11 90 72 / 18%), inset 0 1px 0 rgb(255 255 255 / 18%);
+  transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+}
+
+.admin-primary-button:hover {
+  filter: saturate(1.08) brightness(1.03);
+  box-shadow: 0 10px 24px rgb(11 90 72 / 24%), inset 0 1px 0 rgb(255 255 255 / 20%);
+  transform: translateY(-1px);
+}
+
+.admin-stat {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #ffffff 42%, var(--stat-tint) 100%);
+}
+
+.admin-stat::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--stat-color);
+  content: "";
+}
+
+.admin-stat:nth-child(1) { --stat-color: #0b5a48; --stat-tint: #e7f4ee; }
+.admin-stat:nth-child(2) { --stat-color: #2f8f61; --stat-tint: #edf9f2; }
+.admin-stat:nth-child(3) { --stat-color: #c58a22; --stat-tint: #fff7e8; }
+.admin-stat:nth-child(4) { --stat-color: #c45145; --stat-tint: #fff0ee; }
+
+main h1 {
+  font-family: "Segoe UI Variable Display", "Aptos Display", "Segoe UI", sans-serif;
+  font-weight: 720;
+  color: var(--admin-text-strong);
+}
+
+main .bg-white.border {
+  border-color: var(--admin-border);
+  background: var(--admin-surface-gradient);
+  box-shadow: var(--admin-shadow);
+}
+
+main input:not([type="checkbox"]):not([type="radio"]),
+main select,
+main textarea {
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+main input:not([type="checkbox"]):not([type="radio"]):focus,
+main select:focus,
+main textarea:focus {
+  border-color: #0b5a48;
+  box-shadow: 0 0 0 3px rgb(11 90 72 / 9%);
+  outline: none;
+}
+
+.fixed.inset-0 > .bg-white {
+  border-color: var(--admin-border-strong);
+  background: var(--admin-surface-gradient);
+  box-shadow: 0 28px 80px rgb(10 55 46 / 22%);
+}
+
+* {
+  scrollbar-color: #b9ccc5 transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar { width: 7px; height: 7px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #b9ccc5; border-radius: 8px; }
+*::-webkit-scrollbar-thumb:hover { background: #8ea9a0; }
+
+.admin-control:focus-within, .admin-control:focus {
+  border-color: #0b5a48;
+  background: var(--admin-surface);
+  box-shadow: 0 0 0 3px rgb(11 90 72 / 10%);
+  outline: none;
+}
+
+[data-theme="dark"] [class~="text-[#16322c]"] { color: var(--admin-text) !important; }
+[data-theme="dark"] [class~="text-[#12342c]"] { color: var(--admin-text-strong) !important; }
+[data-theme="dark"] [class~="text-[#304942]"],
+[data-theme="dark"] [class~="text-[#50655f]"] { color: var(--admin-text-secondary) !important; }
+[data-theme="dark"] [class~="text-[#71827d]"] { color: var(--admin-text-muted) !important; }
+[data-theme="dark"] [class~="text-[#96a6a1]"] { color: var(--admin-text-faint) !important; }
+
+[data-theme="dark"] [class~="bg-white"] { background-color: var(--admin-surface) !important; }
+[data-theme="dark"] [class~="bg-[#f3f7f5]"],
+[data-theme="dark"] [class~="bg-[#f5f9f7]"],
+[data-theme="dark"] [class~="bg-[#f7fbf9]"],
+[data-theme="dark"] [class~="bg-[#fbfdfc]"],
+[data-theme="dark"] [class~="bg-[#eff7f3]"],
+[data-theme="dark"] [class~="bg-[#e8efec]"],
+[data-theme="dark"] [class~="bg-[#dce7e3]"],
+[data-theme="dark"] [class~="bg-[#d6e3df]"],
+[data-theme="dark"] [class~="bg-[#faf8f5]"],
+[data-theme="dark"] [class~="bg-[#fefaf8]"],
+[data-theme="dark"] [class~="bg-[#fbf8f3]"] { background-color: var(--admin-surface-soft) !important; }
+
+[data-theme="dark"] [class~="border-[#dce7e3]"],
+[data-theme="dark"] [class~="border-[#d6e3df]"],
+[data-theme="dark"] [class~="border-[#d5e5df]"],
+[data-theme="dark"] [class~="border-[#e8efec]"] { border-color: var(--admin-border) !important; }
+
+[data-theme="dark"] [class~="hover:bg-[#f3f7f5]"]:hover,
+[data-theme="dark"] [class~="hover:bg-[#eff7f3]"]:hover { background-color: var(--admin-hover) !important; }
+[data-theme="dark"] [class~="bg-red-50"] { background-color: #3a201e !important; }
+[data-theme="dark"] [class~="bg-emerald-50"] { background-color: #173328 !important; }
+[data-theme="dark"] [class~="bg-orange-50"] { background-color: #38291a !important; }
+[data-theme="dark"] [class~="bg-[#eef2ff]"] { background-color: #20283d !important; }
+[data-theme="dark"] [class~="bg-[#fef2f0]"],
+[data-theme="dark"] [class~="bg-[#fbe6e2]"] { background-color: #3a201e !important; }
+[data-theme="dark"] [class~="bg-[#eaf5f0]"] { background-color: #173328 !important; }
+[data-theme="dark"] [class~="bg-[#fef3c7]"] { background-color: #3b3119 !important; }
+[data-theme="dark"] option { color: var(--admin-text); background: var(--admin-surface); }
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder { color: var(--admin-text-faint); }
+
+[data-theme="dark"] .admin-stat {
+  background: linear-gradient(135deg, #182823 35%, color-mix(in srgb, var(--stat-color) 16%, #13221d) 100%);
+}
+
+[data-theme="dark"] .login-card,
+[data-theme="dark"] .fixed.inset-0 > .bg-white { box-shadow: 0 30px 90px rgb(0 0 0 / 36%); }
+
+/* Hides the scrollbar on an otherwise-scrollable element (e.g. a
+   horizontal chip strip with custom prev/next arrow buttons) without
+   disabling scroll/touch behavior. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

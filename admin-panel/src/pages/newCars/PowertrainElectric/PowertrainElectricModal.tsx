@@ -1,0 +1,519 @@
+// src/pages/newCars/PowertrainElectric/PowertrainElectricModal.tsx
+import { useEffect, useState } from "react";
+import {
+  useCreatePowertrainElectricMutation,
+  useUpdatePowertrainElectricMutation,
+  useGetPowertrainElectricByIdQuery,
+  type PowertrainElectricRecord,
+} from "./powertrainElectric.api";
+import { useGetVariantOptionsQuery } from "../Variants/variant.api";
+import { useGetCarModelOptionsQuery } from "../carModels/carModel.api";
+import { useGetBrandOptionsQuery } from "../Brands/brand.api";
+import { useGetAttributeOptionsGroupedQuery } from "../AttributeOptions/attributeOption.api";
+import { extractApiError } from "../../../lib/apiClient";
+
+interface FieldErrors {
+  brandId?: string;
+  modelId?: string;
+  variantId?: string;
+  batteryCapacity?: string;
+  drivetrainId?: string;
+  powerPs?: string;
+  torqueNm?: string;
+  claimedRange?: string;
+}
+interface FormState {
+  variantId: number | "";
+  numMotors: string;
+  motorType: string;
+  batteryCapacity: string;
+  batteryChemistry: string;
+  thermalManagementSystem: string;
+  drivetrainId: number | "";
+  powerPs: string;
+  torqueNm: string;
+  claimedRange: string;
+  realWorldRange: string;
+  topSpeedKmph: string;
+  acceleration0To100Sec: string;
+  acChargingOutput: string;
+  acChargingTime: string;
+  dcChargingOutput: string;
+  dcFastChargingTime: string;
+  batteryWarrantyKm: string;
+  batteryWarrantyYears: string;
+  batteryWarrantyRaw: string;
+  motorWarrantyKm: string;
+  motorWarrantyYears: string;
+  motorPowerKw: string;
+  chargingPort: string;
+  chargingOptionsRaw: string;
+  regenerativeBraking: boolean;
+  regenerativeBrakingLevels: string;
+  isDefault: boolean;
+}
+
+function buildInitialState(p?: PowertrainElectricRecord | null): FormState {
+  return {
+    variantId: p?.variantId ?? "",
+    numMotors: p?.numMotors != null ? String(p.numMotors) : "",
+    motorType: p?.motorType ?? "",
+    batteryCapacity: p?.batteryCapacity ?? "",
+    batteryChemistry: p?.batteryChemistry ?? "",
+    thermalManagementSystem: p?.thermalManagementSystem ?? "",
+    drivetrainId: p?.drivetrainId ?? "",
+    powerPs: p?.powerPs != null ? String(p.powerPs) : "",
+    torqueNm: p?.torqueNm != null ? String(p.torqueNm) : "",
+    claimedRange: p?.claimedRange != null ? String(p.claimedRange) : "",
+    realWorldRange: p?.realWorldRange != null ? String(p.realWorldRange) : "",
+    topSpeedKmph: p?.topSpeedKmph != null ? String(p.topSpeedKmph) : "",
+    acceleration0To100Sec: p?.acceleration0To100Sec ?? "",
+    acChargingOutput: p?.acChargingOutput ?? "",
+    acChargingTime: p?.acChargingTime ?? "",
+    dcChargingOutput: p?.dcChargingOutput ?? "",
+    dcFastChargingTime: p?.dcFastChargingTime ?? "",
+    batteryWarrantyKm: p?.batteryWarrantyKm != null ? String(p.batteryWarrantyKm) : "",
+    batteryWarrantyYears: p?.batteryWarrantyYears != null ? String(p.batteryWarrantyYears) : "",
+    batteryWarrantyRaw: p?.batteryWarrantyRaw ?? "",
+    motorWarrantyKm: p?.motorWarrantyKm != null ? String(p.motorWarrantyKm) : "",
+    motorWarrantyYears: p?.motorWarrantyYears != null ? String(p.motorWarrantyYears) : "",
+    motorPowerKw: p?.motorPowerKw ?? "",
+    chargingPort: p?.chargingPort ?? "",
+    chargingOptionsRaw: p?.chargingOptionsRaw ?? "",
+    regenerativeBraking: p?.regenerativeBraking ?? false,
+    regenerativeBrakingLevels: p?.regenerativeBrakingLevels != null ? String(p.regenerativeBrakingLevels) : "",
+    isDefault: p?.isDefault ?? false,
+  };
+}
+
+function numOrNull(value: string): number | null {
+  return value === "" ? null : Number(value);
+}
+
+function strOrNull(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function Field({
+  label,
+  children,
+  error,
+}: {
+  label: string;
+  children: React.ReactNode;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#71827d] mb-1.5">
+        {label}
+      </label>
+      {children}
+      {error && <p className="text-[11px] font-medium text-[#D4300F] mt-1">{error}</p>}
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 pt-1">
+      <p className="text-[11px] font-black uppercase tracking-wider text-[#16322c] border-b border-[#e8efec] pb-1.5">
+        {title}
+      </p>
+      <div className="grid grid-cols-2 gap-3">{children}</div>
+    </div>
+  );
+}
+
+const inputClass =
+  "w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border border-[#d6e3df] rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white";
+const selectClass = "cursor-pointer " + inputClass;
+
+export default function PowertrainElectricModal({
+  open,
+  onClose,
+  editId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  // Only the row's id comes in from the listing (it only holds the
+  // lightweight table fields now) — the modal fetches the full spec
+  // sheet itself so Edit never overwrites fields it can't see.
+  editId?: number | null;
+}) {
+  const isEditMode = editId != null;
+
+  const { data: powertrain, isFetching: loadingPowertrain } = useGetPowertrainElectricByIdQuery(editId ?? 0, {
+    skip: editId == null,
+  });
+
+  const { data: brands = [] } = useGetBrandOptionsQuery();
+
+  const { data: attributeOptionsGrouped } = useGetAttributeOptionsGroupedQuery();
+  const drivetrains = attributeOptionsGrouped?.drivetrain ?? [];
+
+  const [brandId, setBrandId] = useState<number | "">("");
+  const [modelId, setModelId] = useState<number | "">("");
+  // Scoped server-side to the chosen brand/model — options-endpoint, no row cap.
+  const { data: modelsForBrand = [] } = useGetCarModelOptionsQuery(
+    brandId ? { brandId: Number(brandId) } : undefined,
+    { skip: !brandId },
+  );
+  const { data: variantsForModel = [] } = useGetVariantOptionsQuery(
+    modelId ? { modelId: Number(modelId) } : undefined,
+    { skip: !modelId },
+  );
+
+  const [form, setForm] = useState<FormState>(buildInitialState(null));
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState("");
+
+  // Full record arrives async (fresh fetch, or instantly from cache if
+  // this row was already expanded) — sync the form once it's here.
+  useEffect(() => {
+    if (powertrain) {
+      setForm(buildInitialState(powertrain));
+      setBrandId(powertrain.variant.model.brand.id);
+      setModelId(powertrain.variant.model.id);
+    }
+  }, [powertrain]);
+
+  const [createPowertrainElectric, { isLoading: creating }] = useCreatePowertrainElectricMutation();
+  const [updatePowertrainElectric, { isLoading: updating }] = useUpdatePowertrainElectricMutation();
+  const saving = creating || updating;
+
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
+  if (!open) return null;
+
+  // Edit mode, but the full record hasn't arrived yet — show a small
+  // loading state instead of a form that would look empty/wrong for a
+  // moment. Usually instant if this row was already expanded (cached).
+  if (isEditMode && !powertrain) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-[720px] bg-white border border-[#dce7e3] rounded-lg shadow-xl p-10 text-center">
+          <p className="text-[#71827d] text-sm font-medium">
+            {loadingPowertrain ? "Loading powertrain details..." : "Powertrain not found."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleClose = () => {
+    setForm(buildInitialState(null));
+    setBrandId("");
+    setModelId("");
+    setErrors({});
+    setServerError("");
+    onClose();
+  };
+
+  const validate = (): boolean => {
+    const next: FieldErrors = {};
+    if (!brandId) next.brandId = "Brand is required.";
+    if (!modelId) next.modelId = "Car model is required.";
+    if (!form.variantId) next.variantId = "Variant is required.";
+    if (form.batteryCapacity === "" || Number(form.batteryCapacity) <= 0)
+      next.batteryCapacity = "Battery capacity is required.";
+    if (!form.drivetrainId) next.drivetrainId = "Drivetrain is required.";
+    if (form.powerPs === "" || Number(form.powerPs) <= 0) next.powerPs = "Power (PS) is required.";
+    if (form.torqueNm === "" || Number(form.torqueNm) <= 0) next.torqueNm = "Torque (Nm) is required.";
+    if (form.claimedRange === "" || Number(form.claimedRange) <= 0) next.claimedRange = "Claimed range is required.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError("");
+    if (!validate()) return;
+
+    const payload = {
+      variantId: Number(form.variantId),
+      numMotors: numOrNull(form.numMotors),
+      motorType: strOrNull(form.motorType),
+      batteryCapacity: numOrNull(form.batteryCapacity),
+      batteryChemistry: strOrNull(form.batteryChemistry),
+      thermalManagementSystem: strOrNull(form.thermalManagementSystem),
+      drivetrainId: form.drivetrainId === "" ? null : Number(form.drivetrainId),
+      powerPs: numOrNull(form.powerPs),
+      torqueNm: numOrNull(form.torqueNm),
+      claimedRange: numOrNull(form.claimedRange),
+      realWorldRange: numOrNull(form.realWorldRange),
+      topSpeedKmph: numOrNull(form.topSpeedKmph),
+      acceleration0To100Sec: numOrNull(form.acceleration0To100Sec),
+      acChargingOutput: numOrNull(form.acChargingOutput),
+      acChargingTime: numOrNull(form.acChargingTime),
+      dcChargingOutput: numOrNull(form.dcChargingOutput),
+      dcFastChargingTime: strOrNull(form.dcFastChargingTime),
+      batteryWarrantyKm: numOrNull(form.batteryWarrantyKm),
+      batteryWarrantyYears: numOrNull(form.batteryWarrantyYears),
+      batteryWarrantyRaw: strOrNull(form.batteryWarrantyRaw),
+      motorWarrantyKm: numOrNull(form.motorWarrantyKm),
+      motorWarrantyYears: numOrNull(form.motorWarrantyYears),
+      motorPowerKw: numOrNull(form.motorPowerKw),
+      chargingPort: strOrNull(form.chargingPort),
+      chargingOptionsRaw: strOrNull(form.chargingOptionsRaw),
+      regenerativeBraking: form.regenerativeBraking,
+      regenerativeBrakingLevels: numOrNull(form.regenerativeBrakingLevels),
+      isDefault: form.isDefault,
+    };
+
+    try {
+      if (isEditMode && powertrain) {
+        await updatePowertrainElectric({ id: powertrain.id, input: payload }).unwrap();
+      } else {
+        await createPowertrainElectric(payload).unwrap();
+      }
+      handleClose();
+    } catch (err) {
+      setServerError(extractApiError(err));
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div className="w-full max-w-[720px] bg-white border border-[#dce7e3] rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 pt-6 sticky top-0 bg-white z-10">
+          <div>
+            <h2 className="text-[#16322c] text-lg font-black">
+              {isEditMode ? "Edit Electric powertrain" : "Add Electric powertrain"}
+            </h2>
+            <p className="text-[#71827d] text-xs mt-1">
+              {isEditMode
+                ? `Update spec details for "${powertrain?.variant.variantName}"`
+                : "Variant, battery capacity, drivetrain, power, torque and claimed range are required — everything else can be filled in later."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="Close"
+            className="cursor-pointer text-[#96a6a1] hover:text-[#16322c] transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-5 space-y-5" noValidate>
+          <Section title="Basics">
+            <Field label="Brand" error={errors.brandId}>
+              <select
+                value={brandId}
+                onChange={(e) => {
+                  const next = e.target.value ? Number(e.target.value) : "";
+                  setBrandId(next);
+                  setModelId("");
+                  set("variantId", "");
+                }}
+                className={selectClass}
+              >
+                <option value="">Select a brand</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Car model" error={errors.modelId}>
+              <select
+                value={modelId}
+                onChange={(e) => {
+                  const next = e.target.value ? Number(e.target.value) : "";
+                  setModelId(next);
+                  set("variantId", "");
+                }}
+                disabled={!brandId}
+                className={selectClass + " disabled:opacity-50 disabled:cursor-not-allowed"}
+              >
+                <option value="">{brandId ? "Select a car model" : "Select a brand first"}</option>
+                {modelsForBrand.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Variant" error={errors.variantId}>
+              <select
+                value={form.variantId}
+                onChange={(e) => set("variantId", e.target.value ? Number(e.target.value) : "")}
+                disabled={!modelId}
+                className={selectClass + " disabled:opacity-50 disabled:cursor-not-allowed"}
+              >
+                <option value="">{modelId ? "Select a variant" : "Select a car model first"}</option>
+                {variantsForModel.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.variantName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Drivetrain" error={errors.drivetrainId}>
+              <select
+                value={form.drivetrainId}
+                onChange={(e) => set("drivetrainId", e.target.value ? Number(e.target.value) : "")}
+                className={selectClass}
+              >
+                <option value="">Not set</option>
+                {drivetrains.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </Field>
+          </Section>
+
+          <Section title="Motor & battery">
+            <Field label="Number of motors">
+              <input type="number" min={0} value={form.numMotors} onChange={(e) => set("numMotors", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Motor type">
+              <input type="text" value={form.motorType} onChange={(e) => set("motorType", e.target.value)} placeholder="e.g. PMSM" className={inputClass} />
+            </Field>
+            <Field label="Motor power (kW)">
+              <input type="number" min={0} step="0.1" value={form.motorPowerKw} onChange={(e) => set("motorPowerKw", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Battery capacity (kWh)" error={errors.batteryCapacity}>
+              <input type="number" min={0} step="0.1" value={form.batteryCapacity} onChange={(e) => set("batteryCapacity", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Battery chemistry">
+              <input type="text" value={form.batteryChemistry} onChange={(e) => set("batteryChemistry", e.target.value)} placeholder="e.g. LFP, NMC" className={inputClass} />
+            </Field>
+            <Field label="Thermal management system">
+              <input type="text" value={form.thermalManagementSystem} onChange={(e) => set("thermalManagementSystem", e.target.value)} placeholder="e.g. Liquid cooled" className={inputClass} />
+            </Field>
+          </Section>
+
+          <Section title="Power, range & performance">
+            <Field label="Power (PS)" error={errors.powerPs}>
+              <input type="number" min={0} value={form.powerPs} onChange={(e) => set("powerPs", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Torque (Nm)" error={errors.torqueNm}>
+              <input type="number" min={0} value={form.torqueNm} onChange={(e) => set("torqueNm", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Claimed range (km)" error={errors.claimedRange}>
+              <input type="number" min={0} value={form.claimedRange} onChange={(e) => set("claimedRange", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Real world range (km)">
+              <input type="number" min={0} value={form.realWorldRange} onChange={(e) => set("realWorldRange", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Top speed (km/h)">
+              <input type="number" min={0} value={form.topSpeedKmph} onChange={(e) => set("topSpeedKmph", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="0-100 time (sec)">
+              <input type="number" min={0} step="0.1" value={form.acceleration0To100Sec} onChange={(e) => set("acceleration0To100Sec", e.target.value)} className={inputClass} />
+            </Field>
+          </Section>
+
+          <Section title="Charging">
+            <Field label="AC charging output (kW)">
+              <input type="number" min={0} step="0.1" value={form.acChargingOutput} onChange={(e) => set("acChargingOutput", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="AC charging time (hrs)">
+              <input type="number" min={0} step="0.1" value={form.acChargingTime} onChange={(e) => set("acChargingTime", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="DC charging output (kW)">
+              <input type="number" min={0} step="0.1" value={form.dcChargingOutput} onChange={(e) => set("dcChargingOutput", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="DC fast charging time">
+              <input type="text" value={form.dcFastChargingTime} onChange={(e) => set("dcFastChargingTime", e.target.value)} placeholder="e.g. 10-80% in 30 min" className={inputClass} />
+            </Field>
+            <Field label="Charging port">
+              <input type="text" value={form.chargingPort} onChange={(e) => set("chargingPort", e.target.value)} placeholder="e.g. CCS-II" className={inputClass} />
+            </Field>
+            <Field label="Charging options (raw text)">
+              <input type="text" value={form.chargingOptionsRaw} onChange={(e) => set("chargingOptionsRaw", e.target.value)} placeholder="e.g. 7.2 kW AC | 3.3 kW AC | 65 kW DC" className={inputClass} />
+            </Field>
+            <Field label="Regenerative braking levels">
+              <input type="number" min={0} value={form.regenerativeBrakingLevels} onChange={(e) => set("regenerativeBrakingLevels", e.target.value)} className={inputClass} />
+            </Field>
+            <div className="flex items-end pb-2.5">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" checked={form.regenerativeBraking} onChange={(e) => set("regenerativeBraking", e.target.checked)} className="w-4 h-4 rounded accent-[#0B5A48] cursor-pointer" />
+                <span className="text-sm font-medium text-[#304942]">Regenerative braking</span>
+              </label>
+            </div>
+          </Section>
+
+          <Section title="Warranty">
+            <Field label="Battery warranty (km)">
+              <input type="number" min={0} value={form.batteryWarrantyKm} onChange={(e) => set("batteryWarrantyKm", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Battery warranty (years)">
+              <input type="number" min={0} value={form.batteryWarrantyYears} onChange={(e) => set("batteryWarrantyYears", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Battery warranty (source text)">
+              <input type="text" value={form.batteryWarrantyRaw} onChange={(e) => set("batteryWarrantyRaw", e.target.value)} placeholder="e.g. Lifetime / Unlimited" className={inputClass} />
+            </Field>
+            <Field label="Motor warranty (km)">
+              <input type="number" min={0} value={form.motorWarrantyKm} onChange={(e) => set("motorWarrantyKm", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Motor warranty (years)">
+              <input type="number" min={0} value={form.motorWarrantyYears} onChange={(e) => set("motorWarrantyYears", e.target.value)} className={inputClass} />
+            </Field>
+          </Section>
+
+          <label className="flex items-center gap-2.5 cursor-pointer select-none pt-1">
+            <input
+              type="checkbox"
+              checked={form.isDefault}
+              onChange={(e) => set("isDefault", e.target.checked)}
+              className="w-4 h-4 rounded accent-[#0B5A48] cursor-pointer"
+            />
+            <span className="text-sm font-medium text-[#304942]">
+              Set as default Electric powertrain for this variant
+            </span>
+          </label>
+
+          {serverError && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-lg px-3.5 py-2.5">
+              <p className="text-red-500 text-xs font-medium">{serverError}</p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2.5 pt-1 sticky bottom-0 bg-white">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="cursor-pointer flex-1 py-2.5 rounded-lg text-sm font-bold text-[#304942] border border-[#d6e3df] hover:bg-[#f3f7f5] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="cursor-pointer flex-1 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ background: "linear-gradient(135deg, #0a4a3c 0%, #0d6a54 58%, #118166 100%)" }}
+            >
+              {saving ? (
+                <>
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Saving...
+                </>
+              ) : isEditMode ? (
+                "Save changes"
+              ) : (
+                "Create powertrain"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

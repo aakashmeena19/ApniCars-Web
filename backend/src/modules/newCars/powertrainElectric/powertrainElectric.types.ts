@@ -1,0 +1,69 @@
+// src/modules/newCars/powertrainElectric/powertrainElectric.types.ts
+
+export interface PowertrainElectricVariantSummary {
+  id: number;
+  variantName: string;
+  model: { id: number; name: string; brand: { id: number; name: string } };
+}
+
+export interface AttributeOptionSummary {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface PowertrainElectricRecord {
+  id: number;
+  variantId: number;
+  numMotors: number | null;
+  motorType: string | null;
+  batteryCapacity: string | null;
+  batteryChemistry: string | null;
+  thermalManagementSystem: string | null;
+  drivetrainId: number | null;
+  drivetrain: AttributeOptionSummary | null;
+  powerPs: number | null;
+  torqueNm: number | null;
+  claimedRange: number | null;
+  realWorldRange: number | null;
+  topSpeedKmph: number | null;
+  acceleration0To100Sec: string | null;
+  acChargingOutput: string | null;
+  acChargingTime: string | null;
+  dcChargingOutput: string | null;
+  dcFastChargingTime: string | null;
+  batteryWarrantyKm: number | null;
+  batteryWarrantyYears: number | null;
+  batteryWarrantyRaw: string | null;
+  motorWarrantyKm: number | null;
+  motorWarrantyYears: number | null;
+  motorPowerKw: string | null;
+  chargingPort: string | null;
+  chargingOptionsRaw: string | null;
+  regenerativeBraking: boolean;
+  regenerativeBrakingLevels: number | null;
+  isDefault: boolean;
+  isDeleted: boolean;
+  deletedBy: number | null;
+  deletedAt: Date | null;
+  expiresAt: Date | null;
+  createdAt: Date;
+  variant: PowertrainElectricVariantSummary;
+}
+
+// What the listing table actually renders — everything else (charging
+// specs, warranty, etc.) is fetched on demand via getById when a row is
+// expanded, instead of being shipped on every list call.
+export interface PowertrainElectricListItem {
+  id: number;
+  variantId: number;
+  batteryCapacity: string | null;
+  drivetrain: AttributeOptionSummary | null;
+  powerPs: number | null;
+  torqueNm: number | null;
+  claimedRange: number | null;
+  isDefault: boolean;
+  isDeleted: boolean;
+  createdAt: Date;
+  variant: PowertrainElectricVariantSummary;
+}

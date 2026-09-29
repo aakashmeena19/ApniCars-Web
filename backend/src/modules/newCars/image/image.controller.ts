@@ -1,0 +1,147 @@
+// src/modules/newCars/image/image.controller.ts
+
+import { Request, Response } from 'express';
+import { ApiError } from '@/core/errors/ApiError';
+import { sendSuccess, sendPaginated } from '@/core/utils/sendResponse';
+import { createLog } from '@/core/utils/createLog';
+import { buildPublicPath, deleteUploadedFile } from '@/core/utils/fileStorage.util';
+import { getClientIp } from '@/core/utils/getClientIp';
+import * as imageService from './image.service';
+import {
+  imageListQuerySchema,
+  imageIdParamSchema,
+  createImageSchema,
+  updateImageSchema,
+  setPrimaryImageSchema,
+  bulkCreateImagesSchema,
+} from './image.validation';
+
+// GET /images
+export async function getImages(req: Request, res: Response) {
+  const query = imageListQuerySchema.parse(req.query);
+  const result = await imageService.listImages(query);
+  return sendPaginated(res, result.items, result.pagination, 'Images fetched successfully');
+}
+
+// GET /images/:id
+export async function getImageById(req: Request, res: Response) {
+  const { id } = imageIdParamSchema.parse(req.params);
+  const image = await imageService.getImageById(id);
+
+  // View activity is logged too (not just create/update/delete) so the
+  // admin-logs screen shows a complete audit trail of who looked at what.
+  if (req.auth) {
+    await createLog({
+      adminId: req.auth.id,
+      description: `Viewed image (id ${id}) for car model id ${image.modelId}`,
+      ipAddress: getClientIp(req),
+    });
+  }
+
+  return sendSuccess(res, image, 'Image fetched successfully');
+}
+
+// POST /images
+export async function createImage(req: Request, res: Response) {
+  if (!req.auth) {
+    throw ApiError.unauthorized();
+  }
+  if (!req.file) {
+    throw ApiError.badRequest('Image file is required (expected field name "image")');
+  }
+
+  try {
+    const input = createImageSchema.parse(req.body);
+    const image = await imageService.createImage(input, req.auth.id, req.file.filename, getClientIp(req));
+    return sendSuccess(res, image, 'Image uploaded successfully', 201);
+  } catch (err) {
+    await deleteUploadedFile(buildPublicPath('car-images', req.file.filename));
+    throw err;
+  }
+}
+
+// POST /images/bulk
+// Multiple files in one request (multer .array('images', MAX)), same
+// scoping fields applied to every file — see bulkCreateImagesSchema.
+export async function createImagesBulk(req: Request, res: Response) {
+  if (!req.auth) {
+    throw ApiError.unauthorized();
+  }
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  if (files.length === 0) {
+    throw ApiError.badRequest('At least one image file is required (expected field name "images")');
+  }
+
+  try {
+    const input = bulkCreateImagesSchema.parse(req.body);
+    const images = await imageService.createImagesBulk(
+      input,
+      req.auth.id,
+      files.map((f) => f.filename),
+      getClientIp(req),
+    );
+    return sendSuccess(res, images, `${images.length} image(s) uploaded successfully`, 201);
+  } catch (err) {
+    await Promise.all(
+      files.map((f) => deleteUploadedFile(buildPublicPath('car-images', f.filename))),
+    );
+    throw err;
+  }
+}
+
+// PATCH /images/:id
+export async function updateImage(req: Request, res: Response) {
+  const { id } = imageIdParamSchema.parse(req.params);
+  const input = updateImageSchema.parse(req.body);
+
+  if (!req.auth) {
+    throw ApiError.unauthorized();
+  }
+
+  const image = await imageService.updateImage(id, input, req.auth.id, getClientIp(req));
+  return sendSuccess(res, image, 'Image updated successfully');
+}
+
+// PATCH /images/:id/set-primary
+// Dedicated quick toggle for the gallery's "set as cover" button —
+// same idea as brand.controller.ts's updateBrandStatus.
+export async function setPrimaryImage(req: Request, res: Response) {
+  const { id } = imageIdParamSchema.parse(req.params);
+  const { isPrimary } = setPrimaryImageSchema.parse(req.body);
+
+  if (!req.auth) {
+    throw ApiError.unauthorized();
+  }
+
+  const image = await imageService.setPrimaryImage(id, isPrimary, req.auth.id, getClientIp(req));
+  return sendSuccess(res, image, 'Primary image updated successfully');
+}
+
+// PATCH /images/:id/file
+// Replace the underlying image file without touching modelId/colorId/
+// angle/isPrimary metadata.
+export async function replaceImageFile(req: Request, res: Response) {
+  const { id } = imageIdParamSchema.parse(req.params);
+
+  if (!req.auth) {
+    throw ApiError.unauthorized();
+  }
+  if (!req.file) {
+    throw ApiError.badRequest('No image file received (expected field name "image")');
+  }
+
+  const image = await imageService.replaceImageFile(id, req.file.filename, req.auth.id, getClientIp(req));
+  return sendSuccess(res, image, 'Image file replaced successfully');
+}
+
+// DELETE /images/:id
+export async function deleteImage(req: Request, res: Response) {
+  const { id } = imageIdParamSchema.parse(req.params);
+
+  if (!req.auth) {
+    throw ApiError.unauthorized();
+  }
+
+  const result = await imageService.deleteImage(id, req.auth.id, getClientIp(req));
+  return sendSuccess(res, null, result.message);
+}

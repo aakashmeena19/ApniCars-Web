@@ -1,0 +1,72 @@
+// src/modules/newCars/variant/variant.validation.ts
+
+import { z } from 'zod';
+
+export const variantListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().trim().min(1).optional(),
+  modelId: z.coerce.number().int().positive().optional(),
+  transmissionId: z.coerce.number().int().positive().optional(),
+  isTopSeller: z.coerce.boolean().optional(),
+  sortBy: z.enum(['variantName', 'id', 'price', 'createdAt']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export const variantIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+// Lightweight query for the /options endpoint — no page/limit/search,
+// this always returns the full unpaginated set for dropdown use,
+// optionally scoped to one model (for cascading Model → Variant pickers).
+export const variantOptionsQuerySchema = z.object({
+  modelId: z.coerce.number().int().positive().optional(),
+});
+
+// Every field below is mandatory on BOTH create and update — this module
+// intentionally does NOT follow Brand/CarModel's "partial patch" pattern.
+// The frontend always sends the complete form on Add and on Edit, so
+// create and update share the exact same required shape.
+const variantShape = {
+  modelId: z.coerce.number().int().positive('modelId is required'),
+  variantName: z.string().trim().min(2, 'Variant name must be at least 2 characters').max(100),
+  price: z.coerce.number().positive('Price is required and must be greater than 0'),
+  seatingCapacity: z.coerce
+    .number()
+    .int('Seating capacity must be a whole number')
+    .min(2, 'Seating capacity must be at least 2')
+    .max(15, 'Seating capacity must be 15 or less'),
+  // Now an FK into attribute_options (category = "transmission") instead
+  // of a hardcoded enum.
+  transmissionId: z.coerce.number().int().positive('Transmission is required'),
+  isTopSeller: z.boolean({
+    required_error: 'isTopSeller is required',
+    invalid_type_error: 'isTopSeller must be true or false',
+  }),
+  // Chassis/dimension fields — all optional, filled in progressively same
+  // as the powertrain spec sheets. .nullable() alongside .optional() since
+  // the frontend sends explicit null (not just omits the key) for a blank
+  // field — .optional() alone only permits undefined, not null.
+  length: z.coerce.number().int().nonnegative().nullable().optional(),
+  width: z.coerce.number().int().nonnegative().nullable().optional(),
+  height: z.coerce.number().int().nonnegative().nullable().optional(),
+  wheelBase: z.coerce.number().int().nonnegative().nullable().optional(),
+  groundClearance: z.coerce.number().int().nonnegative().nullable().optional(),
+  bootSpace: z.coerce.number().int().nonnegative().nullable().optional(),
+  frontSuspension: z.string().trim().max(100).nullable().optional(),
+  rearSuspension: z.string().trim().max(100).nullable().optional(),
+  steeringType: z.string().trim().max(50).nullable().optional(),
+  frontBrakeType: z.string().trim().max(50).nullable().optional(),
+  rearBrakeType: z.string().trim().max(50).nullable().optional(),
+  vehicleWarrantyRaw: z.string().trim().max(100).nullable().optional(),
+};
+
+export const createVariantSchema = z.object(variantShape);
+
+export const updateVariantSchema = z.object(variantShape);
+
+export type VariantListQueryParsed = z.infer<typeof variantListQuerySchema>;
+export type VariantOptionsQueryParsed = z.infer<typeof variantOptionsQuerySchema>;
+export type CreateVariantParsed = z.infer<typeof createVariantSchema>;
+export type UpdateVariantParsed = z.infer<typeof updateVariantSchema>;

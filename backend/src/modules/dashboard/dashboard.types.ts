@@ -1,0 +1,80 @@
+// src/modules/dashboard/dashboard.types.ts
+
+export interface DashboardKpis {
+  totalBrands: number;
+  totalModels: number;
+  totalVariants: number;
+  totalUsedCarListings: number;
+  totalUsers: number;
+  totalAdmins: number;
+}
+
+export interface LeadTypeCount {
+  type: 'sellCar' | 'buyNewCar' | 'buyUsedCar' | 'insurance' | 'loan' | 'softLead' | 'priceDropAlert';
+  count: number;
+}
+
+export interface DashboardTrendPoint {
+  date: string; // YYYY-MM-DD, oldest first
+  count: number;
+}
+
+export interface DashboardLeads {
+  byType: LeadTypeCount[];
+  total: number;
+  trend: DashboardTrendPoint[];
+}
+
+export interface DashboardTraffic {
+  // All-time sum of PageViewDailyStat.viewCount, not just the trend window.
+  total: number;
+  trend: DashboardTrendPoint[];
+}
+
+export interface DashboardContent {
+  totalNews: number;
+  publishedNews: number;
+  draftNews: number;
+  totalReviews: number;
+  pendingReviews: number;
+  totalFaqs: number;
+}
+
+export interface DashboardAds {
+  activeCampaigns: number;
+  activePlacements: number;
+  impressionsToday: number;
+  clicksToday: number;
+}
+
+export interface SeoPageTypeCount {
+  pageType: number;
+  count: number;
+}
+
+export interface DashboardSeo {
+  staticCovered: number;
+  dynamicByType: SeoPageTypeCount[];
+}
+
+export interface DashboardActivityItem {
+  id: string; // AdminLog.id is a BigInt — stringified for JSON transport
+  adminName: string;
+  description: string | null;
+  createdAt: Date;
+}
+
+export interface DashboardPendingActions {
+  reviewsPending: number;
+}
+
+export interface DashboardSummary {
+  kpis: DashboardKpis;
+  leads: DashboardLeads;
+  traffic: DashboardTraffic;
+  content: DashboardContent;
+  ads: DashboardAds;
+  seo: DashboardSeo;
+  recentActivity: DashboardActivityItem[];
+  pendingActions: DashboardPendingActions;
+}

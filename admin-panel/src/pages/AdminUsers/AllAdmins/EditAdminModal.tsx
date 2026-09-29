@@ -1,0 +1,349 @@
+// src/pages/AdminUsers/EditAdminModal.tsx
+
+import { useState, useEffect } from "react";
+import { useUpdateAdminMutation, type AdminRecord } from "./admin.api";
+import { useGetRolesQuery } from "../Roles/role.api";
+import { extractApiError } from "../../../lib/apiClient";
+import { useAuth } from "../../../context/useAuth";
+
+interface FieldErrors {
+  name?: string;
+  email?: string;
+  mobile?: string;
+  roleId?: string;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#71827d] mb-1.5">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function TextField({
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  type?: string;
+  error?: string;
+}) {
+  return (
+    <div>
+      <div
+        className="flex items-center gap-2 rounded-lg border bg-[#f3f7f5] px-3 py-2.5 transition-all focus-within:bg-white"
+        style={{
+          borderColor: error ? "#f0997b" : "#d6e3df",
+          boxShadow: error ? "0 0 0 2px rgba(216,90,48,0.1)" : "none",
+        }}
+      >
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 bg-transparent text-sm font-medium text-[#16322c] outline-none placeholder:text-[#96a6a1]"
+        />
+      </div>
+      {error && <p className="text-[11px] font-medium text-[#D4300F] mt-1">{error}</p>}
+    </div>
+  );
+}
+
+function toDateInputValue(value: string | null) {
+  if (!value) return "";
+  return new Date(value).toISOString().split("T")[0];
+}
+
+export default function EditAdminModal({
+  open,
+  admin,
+  onClose,
+  onUpdate,
+}: {
+  open: boolean;
+  admin: AdminRecord | null;
+  onClose: () => void;
+  onUpdate: (admin: AdminRecord) => void;
+}) {
+  const { admin: currentAdmin } = useAuth();
+  // The backend rejects a self-role change outright (see admin.service.ts —
+  // an admin can never change their own roleId, same as they can never
+  // change their own status). Disable the field here too so the person
+  // sees why up front instead of hitting a server error after filling out
+  // the whole form.
+  const isEditingSelf = !!currentAdmin && !!admin && currentAdmin.id === admin.id;
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
+
+  const [parentRoleId, setParentRoleId] = useState<number | "">("");
+  const [subRoleId, setSubRoleId] = useState<number | "">("");
+  const {
+    data: rolesData,
+    isLoading: rolesLoadingQuery,
+    isFetching: rolesFetchingQuery,
+    error: rolesQueryError,
+  } = useGetRolesQuery(undefined, { skip: !open || !admin });
+  const parentRoles = rolesData?.parentRoles ?? [];
+  const childRolesByParent = rolesData?.childRolesByParent ?? {};
+  const rolesLoading = rolesLoadingQuery || rolesFetchingQuery;
+  const rolesError = rolesQueryError
+    ? (rolesQueryError as { message?: string }).message ?? "Failed to load roles."
+    : "";
+
+  const [status, setStatus] = useState<"active" | "inactive" | "suspended">("active");
+  const [accessStartDate, setAccessStartDate] = useState("");
+  const [accessEndDate, setAccessEndDate] = useState("");
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState("");
+
+  const [updateAdmin, { isLoading: loading }] = useUpdateAdminMutation();
+
+
+  useEffect(() => {
+    if (!open || !admin) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setName(admin.name);
+      setEmail(admin.email);
+      setMobile(admin.mobile);
+      setStatus(admin.status);
+      setAccessStartDate(toDateInputValue(admin.accessStartDate));
+      setAccessEndDate(toDateInputValue(admin.accessEndDate));
+      setErrors({});
+      setServerError("");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, admin]);
+
+  useEffect(() => {
+    if (!open || !admin || !rolesData) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      const currentRole = rolesData.all.find((r) => r.id === admin.roleId);
+      if (currentRole) {
+        if (currentRole.parentRoleId) {
+          setParentRoleId(currentRole.parentRoleId);
+          setSubRoleId(currentRole.id);
+        } else {
+          setParentRoleId(currentRole.id);
+          setSubRoleId("");
+        }
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, admin, rolesData]);
+
+  if (!open || !admin) return null;
+
+  const childRoles = parentRoleId ? childRolesByParent[String(parentRoleId)] ?? [] : [];
+  const hasSubRoles = childRoles.length > 0;
+  const effectiveRoleId = hasSubRoles ? subRoleId : parentRoleId;
+
+  const handleParentRoleChange = (value: string) => {
+    const id = value ? Number(value) : "";
+    setParentRoleId(id);
+    setSubRoleId("");
+  };
+
+  const validate = (): boolean => {
+    const next: FieldErrors = {};
+    if (name.trim().length < 2) next.name = "Name must be at least 2 characters.";
+    if (!/^\S+@\S+\.\S+$/.test(email)) next.email = "Enter a valid email address.";
+    if (!/^[0-9]{10,15}$/.test(mobile)) next.mobile = "Mobile must be 10-15 digits.";
+    if (!parentRoleId) {
+      next.roleId = "Select a role.";
+    } else if (hasSubRoles && !subRoleId) {
+      next.roleId = "This role has sub-roles — select one.";
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError("");
+    if (!validate() || !effectiveRoleId) return;
+
+    try {
+      const updated = await updateAdmin({
+        id: admin.id,
+        input: {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          mobile: mobile.trim(),
+          roleId: effectiveRoleId,
+          status,
+          accessStartDate: accessStartDate || undefined,
+          accessEndDate: accessEndDate || undefined,
+        },
+      }).unwrap();
+      onUpdate(updated);
+      onClose();
+    } catch (err) {
+      setServerError(extractApiError(err));
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-[460px] bg-white border border-[#dce7e3] rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 pt-6">
+          <div>
+            <h2 className="text-[#16322c] text-lg font-black">Edit admin</h2>
+            <p className="text-[#71827d] text-xs mt-1">Update {admin.name}'s account details</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="cursor-pointer text-[#96a6a1] hover:text-[#16322c] transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-5 space-y-4" noValidate>
+          <Field label="Full name">
+            <TextField value={name} onChange={setName} placeholder="Mahender Singh" error={errors.name} />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Email">
+              <TextField value={email} onChange={setEmail} placeholder="admin@apnicars.in" type="email" error={errors.email} />
+            </Field>
+            <Field label="Mobile">
+              <TextField value={mobile} onChange={setMobile} placeholder="9876543210" error={errors.mobile} />
+            </Field>
+          </div>
+
+          <Field label="Role">
+            <select
+              value={parentRoleId}
+              onChange={(e) => handleParentRoleChange(e.target.value)}
+              disabled={rolesLoading || isEditingSelf}
+              className="cursor-pointer w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ borderColor: errors.roleId ? "#f0997b" : "#d6e3df" }}
+            >
+              <option value="" disabled>
+                {rolesLoading ? "Loading roles..." : "Select role"}
+              </option>
+              {parentRoles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.roleName}
+                </option>
+              ))}
+            </select>
+            {rolesError && <p className="text-[11px] font-medium text-[#D4300F] mt-1">{rolesError}</p>}
+            {isEditingSelf && (
+              <p className="text-[11px] text-[#71827d] mt-1">
+                You can't change your own role. Ask another admin to do this for you.
+              </p>
+            )}
+          </Field>
+
+          {hasSubRoles && (
+            <Field label="Sub-role">
+              <select
+                value={subRoleId}
+                onChange={(e) => setSubRoleId(e.target.value ? Number(e.target.value) : "")}
+                disabled={isEditingSelf}
+                className="cursor-pointer w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ borderColor: errors.roleId ? "#f0997b" : "#d6e3df" }}
+              >
+                <option value="" disabled>
+                  Select sub-role
+                </option>
+                {childRoles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.roleName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          {errors.roleId && <p className="text-[11px] font-medium text-[#D4300F] -mt-2">{errors.roleId}</p>}
+
+          <Field label="Status">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as typeof status)}
+              className="cursor-pointer w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border border-[#d6e3df] rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Access start date">
+              <input
+                type="date"
+                value={accessStartDate}
+                onChange={(e) => setAccessStartDate(e.target.value)}
+                className="w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border border-[#d6e3df] rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white"
+              />
+            </Field>
+            <Field label="Access end date">
+              <input
+                type="date"
+                value={accessEndDate}
+                onChange={(e) => setAccessEndDate(e.target.value)}
+                className="w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border border-[#d6e3df] rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white"
+              />
+            </Field>
+          </div>
+
+          {serverError && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-lg px-3.5 py-2.5">
+              <p className="text-red-500 text-xs font-medium">{serverError}</p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="cursor-pointer flex-1 py-2.5 rounded-lg text-sm font-bold text-[#304942] border border-[#d6e3df] hover:bg-[#f3f7f5] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="admin-primary-button cursor-pointer flex-1 py-2.5 rounded-md text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

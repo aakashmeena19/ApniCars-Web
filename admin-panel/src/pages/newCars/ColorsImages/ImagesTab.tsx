@@ -1,0 +1,184 @@
+// src/pages/newCars/ColorsImages/ImagesTab.tsx
+import { useState } from "react";
+import {
+  useGetImagesQuery,
+  useDeleteImageMutation,
+  useSetPrimaryImageMutation,
+  type CarImageRecord,
+} from "./image.api";
+import { extractApiError, getUploadUrl } from "../../../lib/apiClient";
+import ImageModal from "./ImageModal";
+import ConfirmDialog from "../../../components/common/ConfirmDialog";
+import Pagination from "../../../components/common/Pagination";
+
+const PAGE_SIZE = 24;
+
+export default function ImagesTab({ modelId }: { modelId: number }) {
+  const [page, setPage] = useState(1);
+
+  const {
+    data: imagesData,
+    isLoading,
+    isFetching,
+    error: queryError,
+  } = useGetImagesQuery({ page, limit: PAGE_SIZE, modelId });
+
+  const images = imagesData?.data ?? [];
+  const pagination = imagesData?.pagination;
+  const loading = isLoading || isFetching;
+  const error = queryError ? (queryError as { message?: string }).message ?? "Something went wrong." : "";
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingImage, setEditingImage] = useState<CarImageRecord | null>(null);
+
+  const openAddModal = () => {
+    setEditingImage(null);
+    setModalOpen(true);
+  };
+  const openEditModal = (image: CarImageRecord) => {
+    setEditingImage(image);
+    setModalOpen(true);
+  };
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingImage(null);
+  };
+
+  const [deleteImage] = useDeleteImageMutation();
+  const [setPrimaryImage] = useSetPrimaryImageMutation();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState("");
+  // Row pending delete confirmation — drives the shared ConfirmDialog popup.
+  const [pendingDelete, setPendingDelete] = useState<CarImageRecord | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setActionError("");
+    setDeletingId(pendingDelete.id);
+    try {
+      await deleteImage(pendingDelete.id).unwrap();
+      setPendingDelete(null);
+    } catch (err) {
+      setActionError(extractApiError(err));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleSetPrimary = async (image: CarImageRecord) => {
+    setActionError("");
+    setTogglingId(image.id);
+    try {
+      await setPrimaryImage({ id: image.id, isPrimary: !image.isPrimary }).unwrap();
+    } catch (err) {
+      setActionError(extractApiError(err));
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {pagination && (
+          <p className="text-[11px] text-[#71827d] whitespace-nowrap">
+            {pagination.total} image{pagination.total === 1 ? "" : "s"} total
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={openAddModal}
+          className="cursor-pointer text-[12px] font-bold text-white px-4 py-2.5 rounded-lg transition-opacity hover:opacity-90 ml-auto"
+          style={{ background: "linear-gradient(135deg, #0a4a3c 0%, #0d6a54 58%, #118166 100%)" }}
+        >
+          + Add image
+        </button>
+      </div>
+
+      {actionError && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-lg px-3.5 py-2.5">
+          <p className="text-red-500 text-xs font-medium">{actionError}</p>
+        </div>
+      )}
+
+      <div className="bg-white border border-[#dce7e3] rounded-lg overflow-hidden">
+        {loading && <p className="px-4 py-10 text-center text-[#71827d] text-[12px]">Loading images...</p>}
+        {!loading && error && (
+          <p className="px-4 py-10 text-center text-[#D4300F] text-[12px] font-medium">{error}</p>
+        )}
+        {!loading && !error && images.length === 0 && (
+          <p className="px-4 py-10 text-center text-[#71827d] text-[12px]">No images found for this model.</p>
+        )}
+
+        {!loading && !error && images.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-4">
+            {images.map((img) => (
+              <div key={img.id} className="rounded-lg border border-[#dce7e3] overflow-hidden bg-[#f3f7f5]">
+                <div className="relative aspect-[4/3]">
+                  <img src={getUploadUrl(img.imageUrl) ?? undefined} alt="" className="w-full h-full object-cover" />
+                  {img.isPrimary && (
+                    <span
+                      className="absolute top-1.5 left-1.5 text-[9px] font-bold text-white px-1.5 py-0.5 rounded-full"
+                      style={{ background: "linear-gradient(135deg, #0a4a3c 0%, #0d6a54 58%, #118166 100%)" }}
+                    >
+                      Cover
+                    </span>
+                  )}
+                </div>
+                <div className="p-2 space-y-1.5">
+                  <p className="text-[10px] text-[#50655f] truncate">
+                    {img.angle ?? "No angle"}
+                    {img.color ? ` · ${img.color.colorName}` : ""}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleSetPrimary(img)}
+                      disabled={togglingId === img.id}
+                      className="cursor-pointer flex-1 text-[9.5px] font-bold px-1.5 py-1 rounded-lg border border-[#dce7e3] text-[#304942] hover:bg-white transition-colors disabled:opacity-50"
+                    >
+                      {img.isPrimary ? "Unset cover" : "Set cover"}
+                    </button>
+                    <button
+                      onClick={() => openEditModal(img)}
+                      className="cursor-pointer text-[9.5px] font-bold px-1.5 py-1 rounded-lg border border-[#dce7e3] text-[#304942] hover:bg-white transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setPendingDelete(img)}
+                      className="cursor-pointer text-[9.5px] font-bold px-1.5 py-1 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      Del
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Pagination pagination={pagination ?? null} onPageChange={setPage} variant="simple" />
+      </div>
+
+      {modalOpen && (
+        <ImageModal
+          key={editingImage ? `edit-${editingImage.id}` : "add"}
+          open={modalOpen}
+          onClose={closeModal}
+          modelId={modelId}
+          image={editingImage}
+        />
+      )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this image?"
+        itemName={pendingDelete ? (pendingDelete.angle ?? `image #${pendingDelete.id}`) : null}
+        loading={deletingId === pendingDelete?.id}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+      />
+    </div>
+  );
+}

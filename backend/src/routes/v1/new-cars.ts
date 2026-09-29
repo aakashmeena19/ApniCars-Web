@@ -1,0 +1,36 @@
+// src/routes/v1/locations.ts
+import { Router } from 'express';
+import brandRoute from '@/modules/newCars/brand/brand.routes';
+import carModelRoute from '@/modules/newCars/carModels/carModel.routes';
+import variantRoute from '@/modules/newCars/variant/variant.routes'
+import powertrainElectricRoute from '@/modules/newCars/powertrainElectric/powertrainElectric.routes'
+import powertrainice from '@/modules/newCars/powertrainIce/powertrainIce.routes'
+import colorRoute from '@/modules/newCars/color/color.routes'
+import imageRoute from '@/modules/newCars/image/image.routes'
+import colorImageRoute from '@/modules/newCars/colorImage/colorImage.routes'
+import featureRoute from '@/modules/newCars/feature/feature.routes'
+import featureCategoryRoute from '@/modules/newCars/featureCategory/featureCategory.routes'
+import variantFeatureRoute from '@/modules/newCars/variantFeature/variantFeature.routes'
+import faqRoute from '@/modules/newCars/faq/faq.routes'
+import bodyTypeRoute from '@/modules/newCars/bodyType/bodyType.routes'
+import attributeOptionRoute from '@/modules/newCars/attributeOption/attributeOption.routes'
+
+
+const router = Router();
+
+router.use('/brands', brandRoute);
+router.use('/car-models', carModelRoute);
+router.use('/variants', variantRoute)
+router.use('/body-types', bodyTypeRoute)
+router.use('/attribute-options', attributeOptionRoute)
+router.use('/powertrains/electric', powertrainElectricRoute)
+router.use('/powertrains/ice', powertrainice)
+router.use('/colors', colorRoute)
+router.use('/images', imageRoute)
+router.use('/color-images', colorImageRoute)
+router.use('/features', featureRoute )
+router.use('/feature-categories', featureCategoryRoute )
+router.use('/variant-features', variantFeatureRoute )
+router.use('/faqs', faqRoute )
+
+export default router;

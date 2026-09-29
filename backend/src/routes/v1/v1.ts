@@ -1,0 +1,40 @@
+// src/routes/v1/v1.ts
+import { Router } from 'express';
+import healthRoutes from '@/health/health.routes';
+import authRoutes from '@/modules/auth/auth.routes';
+import adminsRoutes from './admin-users';
+import usersRoutes from './users';
+import locationsRoutes from './locations'
+import NewCarsRoutes from './new-cars'
+import NewsRoutes from './news'
+import AdsRoutes from './ads'
+import HomeRoutes from './home'
+import SiteSettingRoutes from './site-setting'
+import AnalyticsRoutes from './analytics'
+import ReviewsRoutes from './reviews'
+import LeadsRoutes from './leads'
+import LendersRoutes from './lenders'
+import SeoRoutes from './seo'
+import DashboardRoutes from '@/modules/dashboard/dashboard.routes'
+
+const router = Router();
+
+router.use('/health', healthRoutes);
+router.use('/auth', authRoutes);
+router.use('/admin-users', adminsRoutes);
+router.use('/users', usersRoutes);
+router.use('/locations', locationsRoutes);
+router.use('/new-cars', NewCarsRoutes)
+router.use('/news', NewsRoutes)
+router.use('/ads' , AdsRoutes)
+router.use('/home', HomeRoutes)
+router.use('/site-settings',SiteSettingRoutes)
+router.use('/analytics', AnalyticsRoutes)
+router.use('/reviews', ReviewsRoutes)
+router.use('/leads', LeadsRoutes)
+router.use('/lenders', LendersRoutes)
+router.use('/seo', SeoRoutes)
+router.use('/dashboard', DashboardRoutes)
+
+
+export default router;

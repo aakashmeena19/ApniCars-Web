@@ -1,0 +1,525 @@
+// src/pages/newCars/PowertrainIce/PowertrainIceModal.tsx
+import { useEffect, useState } from "react";
+import {
+  useCreatePowertrainIceMutation,
+  useUpdatePowertrainIceMutation,
+  useGetPowertrainIceByIdQuery,
+  type PowertrainIceRecord,
+  type FuelType,
+} from "./powertrainIce.api";
+import { useGetVariantOptionsQuery } from "../Variants/variant.api";
+import { useGetCarModelOptionsQuery } from "../carModels/carModel.api";
+import { useGetBrandOptionsQuery } from "../Brands/brand.api";
+import { useGetAttributeOptionsGroupedQuery } from "../AttributeOptions/attributeOption.api";
+import { extractApiError } from "../../../lib/apiClient";
+import { FUEL_TYPE_OPTIONS } from "../../../lib/lookups";
+
+interface FieldErrors {
+  brandId?: string;
+  modelId?: string;
+  variantId?: string;
+  fuelType?: string;
+  kerbWeight?: string;
+  displacementCc?: string;
+  cylinders?: string;
+  powerPs?: string;
+  torqueNm?: string;
+}
+
+interface FormState {
+  variantId: number | "";
+  fuelType: FuelType | "";
+  engineType: string;
+  fuelTankCapacity: string;
+  cngTankCapacity: string;
+  kerbWeight: string;
+  displacementCc: string;
+  cylinders: string;
+  numGears: string;
+  isFourByFour: boolean;
+  drivetrainId: number | "";
+  powerPs: string;
+  powerMinRpm: string;
+  powerMaxRpm: string;
+  torqueNm: string;
+  torqueMinRpm: string;
+  torqueMaxRpm: string;
+  claimedFe: string;
+  realWorldMileage: string;
+  topSpeedKmph: string;
+  acceleration0To100Sec: string;
+  emissionNormCompliance: string;
+  turboCharger: boolean;
+  isDefault: boolean;
+}
+
+function buildInitialState(p?: PowertrainIceRecord | null): FormState {
+  return {
+    variantId: p?.variantId ?? "",
+    fuelType: p?.fuelType ?? "",
+    engineType: p?.engineType ?? "",
+    fuelTankCapacity: p?.fuelTankCapacity ?? "",
+    cngTankCapacity: p?.cngTankCapacity ?? "",
+    kerbWeight: p?.kerbWeight != null ? String(p.kerbWeight) : "",
+    displacementCc: p?.displacementCc != null ? String(p.displacementCc) : "",
+    cylinders: p?.cylinders != null ? String(p.cylinders) : "",
+    numGears: p?.numGears != null ? String(p.numGears) : "",
+    isFourByFour: p?.isFourByFour ?? false,
+    drivetrainId: p?.drivetrainId ?? "",
+    powerPs: p?.powerPs != null ? String(p.powerPs) : "",
+    powerMinRpm: p?.powerMinRpm != null ? String(p.powerMinRpm) : "",
+    powerMaxRpm: p?.powerMaxRpm != null ? String(p.powerMaxRpm) : "",
+    torqueNm: p?.torqueNm != null ? String(p.torqueNm) : "",
+    torqueMinRpm: p?.torqueMinRpm != null ? String(p.torqueMinRpm) : "",
+    torqueMaxRpm: p?.torqueMaxRpm != null ? String(p.torqueMaxRpm) : "",
+    claimedFe: p?.claimedFe ?? "",
+    realWorldMileage: p?.realWorldMileage ?? "",
+    topSpeedKmph: p?.topSpeedKmph != null ? String(p.topSpeedKmph) : "",
+    acceleration0To100Sec: p?.acceleration0To100Sec ?? "",
+    emissionNormCompliance: p?.emissionNormCompliance ?? "",
+    turboCharger: p?.turboCharger ?? false,
+    isDefault: p?.isDefault ?? false,
+  };
+}
+
+function numOrNull(value: string): number | null {
+  return value === "" ? null : Number(value);
+}
+
+function strOrNull(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function Field({
+  label,
+  children,
+  error,
+}: {
+  label: string;
+  children: React.ReactNode;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#71827d] mb-1.5">
+        {label}
+      </label>
+      {children}
+      {error && <p className="text-[11px] font-medium text-[#D4300F] mt-1">{error}</p>}
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 pt-1">
+      <p className="text-[11px] font-black uppercase tracking-wider text-[#16322c] border-b border-[#e8efec] pb-1.5">
+        {title}
+      </p>
+      <div className="grid grid-cols-2 gap-3">{children}</div>
+    </div>
+  );
+}
+
+const inputClass =
+  "w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border border-[#d6e3df] rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white";
+const selectClass = "cursor-pointer " + inputClass;
+
+export default function PowertrainIceModal({
+  open,
+  onClose,
+  editId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  // Only the row's id comes in from the listing (it only holds the
+  // lightweight table fields now) — the modal fetches the full spec
+  // sheet itself so Edit never overwrites fields it can't see.
+  editId?: number | null;
+}) {
+  const isEditMode = editId != null;
+
+  const { data: powertrain, isFetching: loadingPowertrain } = useGetPowertrainIceByIdQuery(editId ?? 0, {
+    skip: editId == null,
+  });
+
+  const { data: brands = [] } = useGetBrandOptionsQuery();
+
+  const { data: attributeOptionsGrouped } = useGetAttributeOptionsGroupedQuery();
+  const drivetrains = attributeOptionsGrouped?.drivetrain ?? [];
+
+  const [brandId, setBrandId] = useState<number | "">("");
+  const [modelId, setModelId] = useState<number | "">("");
+  // Scoped server-side to the chosen brand/model — options-endpoint, no row cap.
+  const { data: modelsForBrand = [] } = useGetCarModelOptionsQuery(
+    brandId ? { brandId: Number(brandId) } : undefined,
+    { skip: !brandId },
+  );
+  const { data: variantsForModel = [] } = useGetVariantOptionsQuery(
+    modelId ? { modelId: Number(modelId) } : undefined,
+    { skip: !modelId },
+  );
+
+  const [form, setForm] = useState<FormState>(buildInitialState(null));
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState("");
+
+  // Full record arrives async (fresh fetch, or instantly from cache if
+  // this row was already expanded) — sync the form once it's here.
+  useEffect(() => {
+    if (powertrain) {
+      setForm(buildInitialState(powertrain));
+      setBrandId(powertrain.variant.model.brand.id);
+      setModelId(powertrain.variant.model.id);
+    }
+  }, [powertrain]);
+
+  const [createPowertrainIce, { isLoading: creating }] = useCreatePowertrainIceMutation();
+  const [updatePowertrainIce, { isLoading: updating }] = useUpdatePowertrainIceMutation();
+  const saving = creating || updating;
+
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
+  if (!open) return null;
+
+  // Edit mode, but the full record hasn't arrived yet — show a small
+  // loading state instead of a form that would look empty/wrong for a
+  // moment. Usually instant if this row was already expanded (cached).
+  if (isEditMode && !powertrain) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-[720px] bg-white border border-[#dce7e3] rounded-lg shadow-xl p-10 text-center">
+          <p className="text-[#71827d] text-sm font-medium">
+            {loadingPowertrain ? "Loading powertrain details..." : "Powertrain not found."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleClose = () => {
+    setForm(buildInitialState(null));
+    setBrandId("");
+    setModelId("");
+    setErrors({});
+    setServerError("");
+    onClose();
+  };
+
+  const validate = (): boolean => {
+    const next: FieldErrors = {};
+    if (!brandId) next.brandId = "Brand is required.";
+    if (!modelId) next.modelId = "Car model is required.";
+    if (!form.variantId) next.variantId = "Variant is required.";
+    if (!form.fuelType) next.fuelType = "Fuel type is required.";
+    if (form.kerbWeight === "" || Number(form.kerbWeight) < 0) next.kerbWeight = "Kerb weight is required.";
+    if (form.displacementCc === "" || Number(form.displacementCc) <= 0) next.displacementCc = "Displacement is required.";
+    if (form.cylinders === "" || Number(form.cylinders) <= 0) next.cylinders = "Cylinders is required.";
+    if (form.powerPs === "" || Number(form.powerPs) <= 0) next.powerPs = "Power (PS) is required.";
+    if (form.torqueNm === "" || Number(form.torqueNm) <= 0) next.torqueNm = "Torque (Nm) is required.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError("");
+    if (!validate()) return;
+
+    const payload = {
+      variantId: Number(form.variantId),
+      fuelType: form.fuelType as FuelType,
+      engineType: strOrNull(form.engineType),
+      fuelTankCapacity: numOrNull(form.fuelTankCapacity),
+      cngTankCapacity: numOrNull(form.cngTankCapacity),
+      kerbWeight: numOrNull(form.kerbWeight),
+      displacementCc: numOrNull(form.displacementCc),
+      cylinders: numOrNull(form.cylinders),
+      numGears: numOrNull(form.numGears),
+      isFourByFour: form.isFourByFour,
+      drivetrainId: form.drivetrainId === "" ? null : Number(form.drivetrainId),
+      powerPs: numOrNull(form.powerPs),
+      powerMinRpm: numOrNull(form.powerMinRpm),
+      powerMaxRpm: numOrNull(form.powerMaxRpm),
+      torqueNm: numOrNull(form.torqueNm),
+      torqueMinRpm: numOrNull(form.torqueMinRpm),
+      torqueMaxRpm: numOrNull(form.torqueMaxRpm),
+      claimedFe: numOrNull(form.claimedFe),
+      realWorldMileage: numOrNull(form.realWorldMileage),
+      topSpeedKmph: numOrNull(form.topSpeedKmph),
+      acceleration0To100Sec: numOrNull(form.acceleration0To100Sec),
+      emissionNormCompliance: strOrNull(form.emissionNormCompliance),
+      turboCharger: form.turboCharger,
+      isDefault: form.isDefault,
+    };
+
+    try {
+      if (isEditMode && powertrain) {
+        await updatePowertrainIce({ id: powertrain.id, input: payload }).unwrap();
+      } else {
+        await createPowertrainIce(payload).unwrap();
+      }
+      handleClose();
+    } catch (err) {
+      setServerError(extractApiError(err));
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div className="w-full max-w-[720px] bg-white border border-[#dce7e3] rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 pt-6 sticky top-0 bg-white z-10">
+          <div>
+            <h2 className="text-[#16322c] text-lg font-black">
+              {isEditMode ? "Edit ICE powertrain" : "Add ICE powertrain"}
+            </h2>
+            <p className="text-[#71827d] text-xs mt-1">
+              {isEditMode
+                ? `Update spec details for "${powertrain?.variant.variantName}"`
+                : "Variant, fuel type, kerb weight, displacement, cylinders, power and torque are required — everything else can be filled in later."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="Close"
+            className="cursor-pointer text-[#96a6a1] hover:text-[#16322c] transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-5 space-y-5" noValidate>
+          <Section title="Basics">
+            <Field label="Brand" error={errors.brandId}>
+              <select
+                value={brandId}
+                onChange={(e) => {
+                  const next = e.target.value ? Number(e.target.value) : "";
+                  setBrandId(next);
+                  setModelId("");
+                  set("variantId", "");
+                }}
+                className={selectClass}
+              >
+                <option value="">Select a brand</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Car model" error={errors.modelId}>
+              <select
+                value={modelId}
+                onChange={(e) => {
+                  const next = e.target.value ? Number(e.target.value) : "";
+                  setModelId(next);
+                  set("variantId", "");
+                }}
+                disabled={!brandId}
+                className={selectClass + " disabled:opacity-50 disabled:cursor-not-allowed"}
+              >
+                <option value="">{brandId ? "Select a car model" : "Select a brand first"}</option>
+                {modelsForBrand.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Variant" error={errors.variantId}>
+              <select
+                value={form.variantId}
+                onChange={(e) => set("variantId", e.target.value ? Number(e.target.value) : "")}
+                disabled={!modelId}
+                className={selectClass + " disabled:opacity-50 disabled:cursor-not-allowed"}
+              >
+                <option value="">{modelId ? "Select a variant" : "Select a car model first"}</option>
+                {variantsForModel.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.variantName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Fuel type" error={errors.fuelType}>
+              <select
+                value={form.fuelType}
+                onChange={(e) => set("fuelType", e.target.value ? (Number(e.target.value) as FuelType) : "")}
+                className={selectClass}
+              >
+                <option value="">Select fuel type</option>
+                {FUEL_TYPE_OPTIONS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Fuel type sub-category">
+              <input
+                type="text"
+                value={form.engineType}
+                onChange={(e) => set("engineType", e.target.value)}
+                placeholder="e.g. Turbo, Strong Hybrid"
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Kerb weight (kg)" error={errors.kerbWeight}>
+              <input
+                type="number"
+                min={0}
+                value={form.kerbWeight}
+                onChange={(e) => set("kerbWeight", e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          </Section>
+
+          <Section title="Engine & tank">
+            <Field label="Fuel tank capacity (L)">
+              <input type="number" min={0} step="0.1" value={form.fuelTankCapacity} onChange={(e) => set("fuelTankCapacity", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="CNG tank capacity (kg)">
+              <input type="number" min={0} step="0.1" value={form.cngTankCapacity} onChange={(e) => set("cngTankCapacity", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Displacement (cc)" error={errors.displacementCc}>
+              <input type="number" min={0} value={form.displacementCc} onChange={(e) => set("displacementCc", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Cylinders" error={errors.cylinders}>
+              <input type="number" min={0} value={form.cylinders} onChange={(e) => set("cylinders", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Emission norm compliance">
+              <input type="text" value={form.emissionNormCompliance} onChange={(e) => set("emissionNormCompliance", e.target.value)} placeholder="e.g. BS VI 2.0" className={inputClass} />
+            </Field>
+            <div className="flex items-end pb-2.5">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" checked={form.turboCharger} onChange={(e) => set("turboCharger", e.target.checked)} className="w-4 h-4 rounded accent-[#0B5A48] cursor-pointer" />
+                <span className="text-sm font-medium text-[#304942]">Turbo charger</span>
+              </label>
+            </div>
+          </Section>
+
+          <Section title="Transmission & drivetrain">
+            <Field label="Number of gears">
+              <input type="number" min={0} value={form.numGears} onChange={(e) => set("numGears", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Drivetrain">
+              <select
+                value={form.drivetrainId}
+                onChange={(e) => set("drivetrainId", e.target.value ? Number(e.target.value) : "")}
+                className={selectClass}
+              >
+                <option value="">Not set</option>
+                {drivetrains.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </Field>
+            <div className="flex items-end pb-2.5">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" checked={form.isFourByFour} onChange={(e) => set("isFourByFour", e.target.checked)} className="w-4 h-4 rounded accent-[#0B5A48] cursor-pointer" />
+                <span className="text-sm font-medium text-[#304942]">Is 4x4</span>
+              </label>
+            </div>
+          </Section>
+
+          <Section title="Power & torque">
+            <Field label="Power (PS)" error={errors.powerPs}>
+              <input type="number" min={0} value={form.powerPs} onChange={(e) => set("powerPs", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Power min RPM">
+              <input type="number" min={0} value={form.powerMinRpm} onChange={(e) => set("powerMinRpm", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Power max RPM">
+              <input type="number" min={0} value={form.powerMaxRpm} onChange={(e) => set("powerMaxRpm", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Torque (Nm)" error={errors.torqueNm}>
+              <input type="number" min={0} value={form.torqueNm} onChange={(e) => set("torqueNm", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Torque min RPM">
+              <input type="number" min={0} value={form.torqueMinRpm} onChange={(e) => set("torqueMinRpm", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Torque max RPM">
+              <input type="number" min={0} value={form.torqueMaxRpm} onChange={(e) => set("torqueMaxRpm", e.target.value)} className={inputClass} />
+            </Field>
+          </Section>
+
+          <Section title="Mileage & performance">
+            <Field label="Claimed FE (kmpl)">
+              <input type="number" min={0} step="0.01" value={form.claimedFe} onChange={(e) => set("claimedFe", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Real world mileage (kmpl)">
+              <input type="number" min={0} step="0.01" value={form.realWorldMileage} onChange={(e) => set("realWorldMileage", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Top speed (km/h)">
+              <input type="number" min={0} value={form.topSpeedKmph} onChange={(e) => set("topSpeedKmph", e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="0-100 time (sec)">
+              <input type="number" min={0} step="0.1" value={form.acceleration0To100Sec} onChange={(e) => set("acceleration0To100Sec", e.target.value)} className={inputClass} />
+            </Field>
+          </Section>
+
+          <label className="flex items-center gap-2.5 cursor-pointer select-none pt-1">
+            <input
+              type="checkbox"
+              checked={form.isDefault}
+              onChange={(e) => set("isDefault", e.target.checked)}
+              className="w-4 h-4 rounded accent-[#0B5A48] cursor-pointer"
+            />
+            <span className="text-sm font-medium text-[#304942]">
+              Set as default ICE powertrain for this variant
+            </span>
+          </label>
+
+          {serverError && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-lg px-3.5 py-2.5">
+              <p className="text-red-500 text-xs font-medium">{serverError}</p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2.5 pt-1 sticky bottom-0 bg-white">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="cursor-pointer flex-1 py-2.5 rounded-lg text-sm font-bold text-[#304942] border border-[#d6e3df] hover:bg-[#f3f7f5] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="cursor-pointer flex-1 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ background: "linear-gradient(135deg, #0a4a3c 0%, #0d6a54 58%, #118166 100%)" }}
+            >
+              {saving ? (
+                <>
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Saving...
+                </>
+              ) : isEditMode ? (
+                "Save changes"
+              ) : (
+                "Create powertrain"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

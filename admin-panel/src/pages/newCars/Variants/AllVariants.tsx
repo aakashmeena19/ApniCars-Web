@@ -1,0 +1,314 @@
+// src/pages/newCars/Variants/AllVariants.tsx
+import { useEffect, useState } from "react";
+import {
+  useGetVariantsQuery,
+  useDeleteVariantMutation,
+  type VariantRecord,
+} from "./variant.api";
+import { useGetCarModelOptionsQuery } from "../carModels/carModel.api";
+import { useGetAttributeOptionsGroupedQuery } from "../AttributeOptions/attributeOption.api";
+import { extractApiError } from "../../../lib/apiClient";
+import VariantModal from "./VariantModal";
+import ConfirmDialog from "../../../components/common/ConfirmDialog";
+import DataTable, { type DataTableColumn } from "../../../components/common/DataTable";
+import Pagination from "../../../components/common/Pagination";
+import { SearchFilterBar, SearchInput, FilterSelect } from "../../../components/common/SearchFilterBar";
+
+// Rows-per-page choices shown in the dropdown — same set as AllAdminLogs.tsx.
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+function formatPrice(value: string): string {
+  const num = Number(value);
+  if (Number.isNaN(num)) return "—";
+  return `₹${(num / 100000).toFixed(2)}L`;
+}
+
+function formatInt(value: number | null, suffix = ""): string {
+  return value != null ? `${value}${suffix}` : "—";
+}
+
+function SpecItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[9px] font-bold uppercase tracking-wider text-[#71827d]">{label}</p>
+      <p className="text-[12px] font-semibold text-[#16322c] mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+function ExpandedVariantDetail({ v }: { v: VariantRecord }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
+      <SpecItem label="Length" value={formatInt(v.length, " mm")} />
+      <SpecItem label="Width" value={formatInt(v.width, " mm")} />
+      <SpecItem label="Height" value={formatInt(v.height, " mm")} />
+      <SpecItem label="Wheelbase" value={formatInt(v.wheelBase, " mm")} />
+      <SpecItem label="Ground clearance" value={formatInt(v.groundClearance, " mm")} />
+      <SpecItem label="Boot space" value={formatInt(v.bootSpace, " L")} />
+      <SpecItem label="Front suspension" value={v.frontSuspension ?? "—"} />
+      <SpecItem label="Rear suspension" value={v.rearSuspension ?? "—"} />
+      <SpecItem label="Steering type" value={v.steeringType ?? "—"} />
+      <SpecItem label="Front brake type" value={v.frontBrakeType ?? "—"} />
+      <SpecItem label="Rear brake type" value={v.rearBrakeType ?? "—"} />
+      <SpecItem label="Vehicle warranty" value={v.vehicleWarrantyRaw ?? "—"} />
+    </div>
+  );
+}
+
+export default function AllVariants() {
+  const [page, setPage] = useState(1);
+  // Rows-per-page, user-controlled via a dropdown next to the filters.
+  const [limit, setLimit] = useState(20);
+  const [search, setSearch] = useState("");
+  // Debounced copy of `search` — this is what actually goes into the
+  // query args, so we don't refetch on every keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filterModelId, setFilterModelId] = useState<number | "">("");
+  const [filterTransmissionId, setFilterTransmissionId] = useState<number | "">("");
+
+  const { data: carModels = [] } = useGetCarModelOptionsQuery();
+
+  // Transmission filter options now come from the dynamic attribute
+  // options lookup instead of a hardcoded enum.
+  const { data: attributeOptionsGrouped } = useGetAttributeOptionsGroupedQuery();
+  const transmissions = attributeOptionsGrouped?.transmission ?? [];
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), search ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const {
+    data: variantsData,
+    isLoading,
+    isFetching,
+    error: queryError,
+  } = useGetVariantsQuery({
+    page,
+    limit,
+    search: debouncedSearch || undefined,
+    modelId: filterModelId || undefined,
+    transmissionId: filterTransmissionId || undefined,
+  });
+
+  const variants = variantsData?.data ?? [];
+  const pagination = variantsData?.pagination;
+  const loading = isLoading || isFetching;
+  const error = queryError ? (queryError as { message?: string }).message ?? "Something went wrong." : "";
+
+  // Modal state — null variant = "Add" mode, a record = "Edit" mode.
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<VariantRecord | null>(null);
+
+  const openAddModal = () => {
+    setEditingVariant(null);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (variant: VariantRecord) => {
+    setEditingVariant(variant);
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingVariant(null);
+  };
+
+  const [deleteVariant] = useDeleteVariantMutation();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<VariantRecord | null>(null);
+  const [actionError, setActionError] = useState("");
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setActionError("");
+    setDeletingId(pendingDelete.id);
+    try {
+      await deleteVariant(pendingDelete.id).unwrap();
+      setPendingDelete(null);
+    } catch (err) {
+      setActionError(extractApiError(err));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleLimitChange = (value: number) => {
+    setLimit(value);
+    setPage(1);
+  };
+
+  const columns: DataTableColumn<VariantRecord>[] = [
+    {
+      header: "Variant",
+      render: (v) => (
+        <>
+          <p className="font-semibold text-[#16322c]">{v.variantName}</p>
+          {v.isTopSeller && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">
+              Top seller
+            </span>
+          )}
+        </>
+      ),
+    },
+    {
+      header: "Model",
+      render: (v) => (
+        <span className="text-[#50655f]">
+          {v.model.brand.name} — {v.model.name}
+        </span>
+      ),
+    },
+    { header: "Price", render: (v) => <span className="text-[#50655f] whitespace-nowrap">{formatPrice(v.price)}</span> },
+    { header: "Seats", render: (v) => <span className="text-[#50655f]">{v.seatingCapacity}</span> },
+    {
+      header: "Transmission",
+      render: (v) => (
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-[#304942] bg-[#f3f7f5] uppercase">
+          {v.transmission?.name ?? "—"}
+        </span>
+      ),
+    },
+    {
+      header: "",
+      align: "right",
+      render: (v) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => openEditModal(v)}
+            className="cursor-pointer text-[10px] font-bold px-2.5 py-1 rounded-lg border border-[#dce7e3] text-[#304942] hover:bg-[#f3f7f5] transition-colors"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => setPendingDelete(v)}
+            className="cursor-pointer text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-5 max-w-[1200px]">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-[18px] font-black text-[#16322c]">Variants</h1>
+          <p className="text-[12px] text-[#71827d] mt-0.5">
+            Manage variants under each car model. Click a row to see its dimensions & chassis specs.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openAddModal}
+          className="cursor-pointer text-[12px] font-bold text-white px-4 py-2.5 rounded-lg transition-opacity hover:opacity-90"
+          style={{ background: "linear-gradient(135deg, #0a4a3c 0%, #0d6a54 58%, #118166 100%)" }}
+        >
+          + Add variant
+        </button>
+      </div>
+
+      {actionError && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-lg px-3.5 py-2.5">
+          <p className="text-red-500 text-xs font-medium">{actionError}</p>
+        </div>
+      )}
+
+      <SearchFilterBar
+        right={
+          <div className="flex items-center gap-3">
+            {pagination && (
+              <p className="text-[11px] text-[#71827d] whitespace-nowrap">
+                {pagination.total} variant{pagination.total === 1 ? "" : "s"} total
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-[#71827d] whitespace-nowrap">Rows per page</span>
+              <select
+                value={limit}
+                onChange={(e) => handleLimitChange(Number(e.target.value))}
+                className="cursor-pointer text-[12px] text-[#304942] bg-[#f3f7f5] border border-[#dce7e3] rounded-lg px-3 py-2 outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        }
+      >
+        <SearchInput
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          placeholder="Search by variant name..."
+        />
+        <FilterSelect
+          value={filterModelId}
+          onChange={(v) => {
+            setFilterModelId(v ? Number(v) : "");
+            setPage(1);
+          }}
+          options={carModels.map((m) => ({ value: m.id, label: `${m.brand.name} — ${m.name}` }))}
+          placeholder="All models"
+        />
+        <FilterSelect
+          value={filterTransmissionId}
+          onChange={(v) => {
+            setFilterTransmissionId(v ? Number(v) : "");
+            setPage(1);
+          }}
+          options={transmissions.map((t) => ({ value: t.id, label: t.name }))}
+          placeholder="All transmissions"
+        />
+      </SearchFilterBar>
+
+      <div className="bg-white border border-[#dce7e3] rounded-lg overflow-hidden">
+        <DataTable
+          columns={columns}
+          rows={variants}
+          rowKey={(v) => v.id}
+          loading={loading}
+          error={error}
+          loadingMessage="Loading variants..."
+          emptyMessage="No variants found."
+          expandable
+          renderExpanded={(v) => <ExpandedVariantDetail v={v} />}
+        />
+        <Pagination
+          pagination={pagination ?? null}
+          onPageChange={setPage}
+          variant="compact"
+          itemLabel="variants"
+          currentCount={variants.length}
+        />
+      </div>
+
+      {modalOpen && (
+        <VariantModal
+          key={editingVariant ? `edit-${editingVariant.id}` : "add"}
+          open={modalOpen}
+          onClose={closeModal}
+          variant={editingVariant}
+        />
+      )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete variant?"
+        itemName={pendingDelete?.variantName}
+        loading={deletingId === pendingDelete?.id}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+      />
+    </div>
+  );
+}
