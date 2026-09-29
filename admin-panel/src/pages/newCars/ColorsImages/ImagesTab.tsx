@@ -10,11 +10,13 @@ import { extractApiError, getUploadUrl } from "../../../lib/apiClient";
 import ImageModal from "./ImageModal";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import Pagination from "../../../components/common/Pagination";
+import Car360Viewer from "./Car360Viewer";
 
 const PAGE_SIZE = 24;
 
 export default function ImagesTab({ modelId }: { modelId: number }) {
   const [page, setPage] = useState(1);
+  const [view, setView] = useState<"gallery" | "360">("gallery");
 
   const {
     data: imagesData,
@@ -27,6 +29,19 @@ export default function ImagesTab({ modelId }: { modelId: number }) {
   const pagination = imagesData?.pagination;
   const loading = isLoading || isFetching;
   const error = queryError ? (queryError as { message?: string }).message ?? "Something went wrong." : "";
+
+  const {
+    data: framesData,
+    isLoading: framesLoading,
+    isFetching: framesFetching,
+    error: framesQueryError,
+  } = useGetImagesQuery(
+    { page: 1, limit: 150, modelId, category: "360", sortBy: "sortOrder", sortOrder: "asc" },
+    { skip: view !== "360" },
+  );
+  const framesError = framesQueryError
+    ? (framesQueryError as { message?: string }).message ?? "Unable to load 360 frames."
+    : "";
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingImage, setEditingImage] = useState<CarImageRecord | null>(null);
@@ -81,19 +96,33 @@ export default function ImagesTab({ modelId }: { modelId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        {pagination && (
+        <div className="flex items-center rounded-lg border border-[#dce7e3] bg-[#f3f7f5] p-1">
+          {(["gallery", "360"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setView(option)}
+              className={`cursor-pointer rounded-md px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                view === option ? "bg-white text-[#0B5A48] shadow-sm" : "text-[#71827d]"
+              }`}
+            >
+              {option === "gallery" ? "Gallery" : "360 View"}
+            </button>
+          ))}
+        </div>
+        {view === "gallery" && pagination && (
           <p className="text-[11px] text-[#71827d] whitespace-nowrap">
             {pagination.total} image{pagination.total === 1 ? "" : "s"} total
           </p>
         )}
-        <button
+        {view === "gallery" && <button
           type="button"
           onClick={openAddModal}
           className="cursor-pointer text-[12px] font-bold text-white px-4 py-2.5 rounded-lg transition-opacity hover:opacity-90 ml-auto"
           style={{ background: "linear-gradient(135deg, #0a4a3c 0%, #0d6a54 58%, #118166 100%)" }}
         >
           + Add image
-        </button>
+        </button>}
       </div>
 
       {actionError && (
@@ -102,7 +131,13 @@ export default function ImagesTab({ modelId }: { modelId: number }) {
         </div>
       )}
 
-      <div className="bg-white border border-[#dce7e3] rounded-lg overflow-hidden">
+      {view === "360" ? (
+        <Car360Viewer
+          frames={framesData?.data ?? []}
+          loading={framesLoading || framesFetching}
+          error={framesError}
+        />
+      ) : <div className="bg-white border border-[#dce7e3] rounded-lg overflow-hidden">
         {loading && <p className="px-4 py-10 text-center text-[#71827d] text-[12px]">Loading images...</p>}
         {!loading && error && (
           <p className="px-4 py-10 text-center text-[#D4300F] text-[12px] font-medium">{error}</p>
@@ -159,7 +194,7 @@ export default function ImagesTab({ modelId }: { modelId: number }) {
         )}
 
         <Pagination pagination={pagination ?? null} onPageChange={setPage} variant="simple" />
-      </div>
+      </div>}
 
       {modalOpen && (
         <ImageModal

@@ -28,7 +28,8 @@ export type CarImageAngle =
   | "seat_ventilation"
   | "safety"
   | "other_features"
-  | "other";
+  | "other"
+  | `frame-${number}`;
 
 export interface CarImageRecord {
   id: number;
@@ -37,6 +38,9 @@ export interface CarImageRecord {
   imageUrl: string;
   isPrimary: boolean;
   angle: CarImageAngle | null;
+  category: string | null;
+  caption: string | null;
+  sortOrder: number;
   model: { id: number; name: string };
   color: { id: number; colorName: string } | null;
 }
@@ -54,8 +58,9 @@ export interface ListImagesParams {
   modelId?: number;
   colorId?: number;
   angle?: CarImageAngle;
+  category?: string;
   isPrimary?: boolean;
-  sortBy?: "id" | "isPrimary";
+  sortBy?: "id" | "isPrimary" | "sortOrder";
   sortOrder?: "asc" | "desc";
 }
 

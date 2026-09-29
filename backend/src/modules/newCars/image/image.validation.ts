@@ -30,6 +30,11 @@ const ANGLES = [
   'other',
 ] as const;
 
+const imageAngleSchema = z.union([
+  z.enum(ANGLES),
+  z.string().regex(/^frame-\d{3}$/, '360 frame angle must use frame-001 format'),
+]);
+
 // Create/update requests are sent as multipart FormData (the image
 // file itself), so booleans arrive as the strings "true"/"false"
 // instead of real JS booleans — same coercion as brand.validation.ts's
@@ -41,16 +46,17 @@ const booleanish = z.preprocess((val) => {
 
 export const imageListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(150).default(20),
   // Images are always scoped to a car model — required for the admin
   // panel's "select a model, then manage its gallery" workflow.
   modelId: z.coerce.number().int().positive().optional(),
   // Or narrow to images tagged with one specific color (colorId is
   // nullable the same way — null means "not tied to a particular color").
   colorId: z.coerce.number().int().positive().optional(),
-  angle: z.enum(ANGLES).optional(),
+  angle: imageAngleSchema.optional(),
+  category: z.string().trim().min(1).max(30).optional(),
   isPrimary: z.coerce.boolean().optional(),
-  sortBy: z.enum(['id', 'isPrimary']).default('id'),
+  sortBy: z.enum(['id', 'isPrimary', 'sortOrder']).default('id'),
   sortOrder: z.enum(['asc', 'desc']).default('asc'),
 });
 
@@ -62,7 +68,7 @@ export const createImageSchema = z.object({
   modelId: z.coerce.number().int().positive('modelId is required'),
   colorId: z.coerce.number().int().positive().optional(),
   isPrimary: booleanish.optional(),
-  angle: z.enum(ANGLES).optional(),
+  angle: imageAngleSchema.optional(),
 });
 
 export const updateImageSchema = z
@@ -70,7 +76,7 @@ export const updateImageSchema = z
     modelId: z.coerce.number().int().positive().optional(),
     colorId: z.coerce.number().int().positive().nullable().optional(),
     isPrimary: booleanish.optional(),
-    angle: z.enum(ANGLES).nullable().optional(),
+    angle: imageAngleSchema.nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided to update',
@@ -87,7 +93,7 @@ export const setPrimaryImageSchema = z.object({
 export const bulkCreateImagesSchema = z.object({
   modelId: z.coerce.number().int().positive('modelId is required'),
   colorId: z.coerce.number().int().positive().optional(),
-  angle: z.enum(ANGLES).optional(),
+  angle: imageAngleSchema.optional(),
 });
 
 export type ImageListQueryParsed = z.infer<typeof imageListQuerySchema>;

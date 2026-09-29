@@ -20,6 +20,9 @@ const IMAGE_SELECT = {
   imageUrl: true,
   isPrimary: true,
   angle: true,
+  category: true,
+  caption: true,
+  sortOrder: true,
   model: {
     select: { id: true, name: true },
   },
@@ -49,12 +52,13 @@ async function assertColorBelongsToModel(colorId: number, modelId: number) {
 }
 
 export async function listImages(query: ImageListQueryParsed) {
-  const { page, limit, modelId, colorId, angle, isPrimary, sortBy, sortOrder } = query;
+  const { page, limit, modelId, colorId, angle, category, isPrimary, sortBy, sortOrder } = query;
 
   const where: Prisma.CarImageWhereInput = {
     ...(modelId ? { modelId } : {}),
     ...(colorId ? { colorId } : {}),
     ...(angle ? { angle } : {}),
+    ...(category ? { category } : {}),
     ...(typeof isPrimary === 'boolean' ? { isPrimary } : {}),
   };
 

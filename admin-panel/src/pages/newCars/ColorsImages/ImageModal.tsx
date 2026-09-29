@@ -66,6 +66,7 @@ export default function ImageModal({
   image?: CarImageRecord | null;
 }) {
   const isEditMode = !!image;
+  const is360Frame = image?.category === "360";
 
   // Colors belonging to this model — lets the admin optionally tag a
   // gallery photo as belonging to one specific color option.
@@ -357,7 +358,11 @@ export default function ImageModal({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Angle (optional)">
-              <select
+              {is360Frame ? (
+                <div className="w-full rounded-lg border border-[#d6e3df] bg-[#f3f7f5] px-3 py-2.5 text-sm font-medium text-[#50655f]">
+                  {image?.angle ?? "360 frame"}
+                </div>
+              ) : <select
                 value={angle}
                 onChange={(e) => setAngle(e.target.value as CarImageAngle | "")}
                 className="cursor-pointer w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border border-[#d6e3df] rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white"
@@ -368,7 +373,7 @@ export default function ImageModal({
                     {a.label}
                   </option>
                 ))}
-              </select>
+              </select>}
             </Field>
 
             <Field label="Color (optional)">
