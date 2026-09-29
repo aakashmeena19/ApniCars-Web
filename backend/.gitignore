@@ -1,6 +1,8 @@
 node_modules
 dist
 .env
+.env.*
+!.env.example
 *.log
 
 # Uploaded files should never be committed — only the folder structure
