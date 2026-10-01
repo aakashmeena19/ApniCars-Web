@@ -56,8 +56,12 @@ export function createApp() {
   app.use(
     '/uploads',
     express.static(UPLOAD_ROOT, {
-      setHeaders: (res) => {
+      setHeaders: (res, filePath) => {
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        if (filePath.toLowerCase().endsWith('.avif')) {
+          res.setHeader('Content-Type', 'image/avif');
+        }
       },
     }),
   );

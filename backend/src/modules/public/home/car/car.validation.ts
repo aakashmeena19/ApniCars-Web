@@ -5,7 +5,7 @@ import { z } from 'zod';
 // Serves LatestCars / PopularCars / UpcomingLaunches / ElectricCars —
 // one shared endpoint, differentiated by `type`, rather than 4 near-
 // identical modules.
-const HOME_CAR_TYPES = ['latest', 'popular', 'upcoming', 'electric'] as const;
+const HOME_CAR_TYPES = ['latest', 'popular', 'upcoming', 'electric', 'featured'] as const;
 
 export const homeCarListQuerySchema = z.object({
   type: z.enum(HOME_CAR_TYPES).default('latest'),
