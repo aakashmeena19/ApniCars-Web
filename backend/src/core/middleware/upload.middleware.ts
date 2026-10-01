@@ -79,7 +79,9 @@ const convertUploadedImagesToAvif: RequestHandler = async (req, _res, next) => {
     ? [req.file]
     : Array.isArray(req.files)
       ? req.files
-      : [];
+      : req.files
+        ? Object.values(req.files).flat()
+        : [];
 
   for (const file of files) {
     // Already AVIF, or not an image at all (video from mediaUploader) —
@@ -127,6 +129,10 @@ function withAvifConversion(uploader: multer.Multer) {
     ],
     array: (fieldName: string, maxCount?: number): RequestHandler[] => [
       uploader.array(fieldName, maxCount),
+      convertUploadedImagesToAvif,
+    ],
+    fields: (fields: readonly multer.Field[]) => [
+      uploader.fields(fields),
       convertUploadedImagesToAvif,
     ],
   };

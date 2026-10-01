@@ -4,3 +4,8 @@ export interface BodyTypeUploadIconResult {
   id: number;
   iconUrl: string;
 }
+
+export interface BodyTypeUploadUpcomingImageResult {
+  id: number;
+  upcomingPlaceholderImageUrl: string;
+}

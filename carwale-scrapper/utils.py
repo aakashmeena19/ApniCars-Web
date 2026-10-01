@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,8 +93,29 @@ class RunLogger:
         log_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
         self.path = log_dir / f"run-{stamp}.jsonl"
+        self._progress_active = False
+        self._progress_width = 0
+
+    def finish_progress(self):
+        if self._progress_active:
+            print()
+        self._progress_active = False
+        self._progress_width = 0
+
+    def progress(self, message, current=None, total=None):
+        line = f"[PROGRESS] {message}"
+        if sys.stdout.isatty():
+            self._progress_width = max(self._progress_width, len(line))
+            print(f"\r{line.ljust(self._progress_width)}", end="", flush=True)
+            self._progress_active = True
+            return
+
+        should_print = current in {None, 1, total} or (current and current % 25 == 0)
+        if should_print:
+            print(line, flush=True)
 
     def write(self, level, message, **data):
+        self.finish_progress()
         entry = {
             "at": datetime.now(timezone.utc).isoformat(),
             "level": level,
@@ -102,7 +124,7 @@ class RunLogger:
         }
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(entry, ensure_ascii=True) + "\n")
-        print(f"[{level.upper()}] {message}")
+        print(f"[{level.upper()}] {message}", flush=True)
 
 
 def load_checkpoint():

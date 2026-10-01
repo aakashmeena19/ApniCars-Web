@@ -6,6 +6,7 @@ export interface BodyTypeRecord {
   name: string;
   slug: string;
   iconUrl: string | null;
+  upcomingPlaceholderImageUrl: string | null;
   description: string | null;
   createdAt: string;
 }
@@ -30,6 +31,7 @@ export interface CreateBodyTypeInput {
   slug: string;
   description: string;
   icon: File;
+  upcomingImage: File;
 }
 
 export interface UpdateBodyTypeInput {
@@ -97,12 +99,13 @@ export const bodyTypeApi = api.injectEndpoints({
     }),
 
     createBodyType: builder.mutation<BodyTypeRecord, CreateBodyTypeInput>({
-      query: ({ icon, ...fields }) => {
+      query: ({ icon, upcomingImage, ...fields }) => {
         const formData = new FormData();
         formData.append("name", fields.name);
         formData.append("slug", fields.slug);
         formData.append("description", fields.description);
         formData.append("icon", icon);
+        formData.append("upcomingImage", upcomingImage);
         return { url: "/new-cars/body-types", method: "POST", data: formData };
       },
       transformResponse: (res: BodyTypeSingleRawResponse) => res.data,
@@ -125,6 +128,22 @@ export const bodyTypeApi = api.injectEndpoints({
       invalidatesTags: (_result, _error, { id }) => [{ type: "BodyType", id }, BODY_TYPE_LIST_TAG],
     }),
 
+    uploadBodyTypeUpcomingImage: builder.mutation<
+      { id: number; upcomingPlaceholderImageUrl: string },
+      { id: number; file: File }
+    >({
+      query: ({ id, file }) => {
+        const formData = new FormData();
+        formData.append("upcomingImage", file);
+        return { url: `/new-cars/body-types/${id}/upcoming-image`, method: "PATCH", data: formData };
+      },
+      transformResponse: (res: {
+        success: true;
+        data: { id: number; upcomingPlaceholderImageUrl: string };
+      }) => res.data,
+      invalidatesTags: (_result, _error, { id }) => [{ type: "BodyType", id }, BODY_TYPE_LIST_TAG],
+    }),
+
     deleteBodyType: builder.mutation<void, number>({
       query: (id) => ({ url: `/new-cars/body-types/${id}`, method: "DELETE" }),
       invalidatesTags: (_result, _error, id) => [{ type: "BodyType", id }, BODY_TYPE_LIST_TAG],
@@ -139,5 +158,6 @@ export const {
   useCreateBodyTypeMutation,
   useUpdateBodyTypeMutation,
   useUploadBodyTypeIconMutation,
+  useUploadBodyTypeUpcomingImageMutation,
   useDeleteBodyTypeMutation,
 } = bodyTypeApi;

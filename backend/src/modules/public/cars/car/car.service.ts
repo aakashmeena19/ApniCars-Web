@@ -3,6 +3,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/prisma/client';
 import { ApiError } from '@/core/errors/ApiError';
+import { resolvePublicCarCoverImage } from '@/core/utils/publicCarImage';
 import { HOME_CAR_SELECT, shapeHomeCarModel, buildHomeCarWhereAndOrderBy } from '@/modules/public/home/car/car.service';
 import type { PublicHomeCarRecord } from '@/modules/public/home/car/car.types';
 import type { CarListQueryParsed, CarsBrowseQueryParsed } from './car.validation';
@@ -427,7 +428,7 @@ export async function getCarDetail(brandSlug: string, modelSlug: string, variant
       name: true,
       slug: true,
       brand: { select: { id: true, name: true, slug: true, logoUrl: true } },
-      bodyType: { select: { id: true, name: true, slug: true } },
+      bodyType: { select: { id: true, name: true, slug: true, upcomingPlaceholderImageUrl: true } },
       launchStatus: true,
       expectedLaunchDate: true,
       priceMin: true,
@@ -441,10 +442,12 @@ export async function getCarDetail(brandSlug: string, modelSlug: string, variant
       },
       _count: { select: { variants: true } },
       images: {
+        where: { model: { launchStatus: { not: 'upcoming' } } },
         select: { id: true, imageUrl: true, isPrimary: true, angle: true, colorId: true },
         orderBy: { isPrimary: 'desc' },
       },
       colors: {
+        where: { model: { launchStatus: { not: 'upcoming' } } },
         select: {
           id: true,
           colorName: true,
@@ -646,13 +649,15 @@ export async function getCarDetail(brandSlug: string, modelSlug: string, variant
     name: car.name,
     slug: car.slug,
     brand: car.brand,
-    bodyType: car.bodyType,
+    bodyType: car.bodyType
+      ? { id: car.bodyType.id, name: car.bodyType.name, slug: car.bodyType.slug }
+      : null,
     launchStatus: car.launchStatus,
     expectedLaunchDate: car.expectedLaunchDate?.toISOString() ?? null,
     priceMin: car.priceMin?.toString() ?? null,
     priceMax: car.priceMax?.toString() ?? null,
     ratingAvg: car.ratingAvg?.toString() ?? null,
-    coverImageUrl: car.coverImageUrl,
+    coverImageUrl: resolvePublicCarCoverImage(car),
     variantOptions: car.variants.map((v) => ({
       id: v.id,
       variantName: v.variantName,
@@ -766,12 +771,16 @@ export async function getCarImages(brandSlug: string, modelSlug: string): Promis
     where: { slug: modelSlug, brand: { slug: brandSlug, isActive: true } },
     select: {
       name: true,
+      launchStatus: true,
       brand: { select: { name: true, slug: true } },
+      bodyType: { select: { upcomingPlaceholderImageUrl: true } },
       images: {
+        where: { model: { launchStatus: { not: 'upcoming' } } },
         select: { id: true, imageUrl: true, isPrimary: true, angle: true, colorId: true },
         orderBy: { isPrimary: 'desc' },
       },
       colors: {
+        where: { model: { launchStatus: { not: 'upcoming' } } },
         select: {
           id: true,
           colorName: true,
@@ -784,7 +793,16 @@ export async function getCarImages(brandSlug: string, modelSlug: string): Promis
   });
 
   if (!car) throw ApiError.notFound(`Car "${brandSlug}/${modelSlug}" not found`);
-  return { ...car, colors: car.colors.map((c) => ({ ...c, additionalCost: c.additionalCost?.toString() ?? null })) };
+  const placeholder = car.bodyType?.upcomingPlaceholderImageUrl;
+  return {
+    name: car.name,
+    brand: car.brand,
+    images:
+      car.launchStatus === 'upcoming' && placeholder
+        ? [{ id: 0, imageUrl: placeholder, isPrimary: true, angle: null, colorId: null }]
+        : car.images,
+    colors: car.colors.map((c) => ({ ...c, additionalCost: c.additionalCost?.toString() ?? null })),
+  };
 }
 
 export interface CarFaqResult {

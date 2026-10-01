@@ -9,13 +9,14 @@ import type {
   CreateBodyTypeParsed,
   UpdateBodyTypeParsed,
 } from './bodyType.validation';
-import type { BodyTypeUploadIconResult } from './bodyType.types';
+import type { BodyTypeUploadIconResult, BodyTypeUploadUpcomingImageResult } from './bodyType.types';
 
 const BODY_TYPE_SELECT = {
   id: true,
   name: true,
   slug: true,
   iconUrl: true,
+  upcomingPlaceholderImageUrl: true,
   description: true,
   createdAt: true,
 } as const;
@@ -93,6 +94,7 @@ export async function createBodyType(
   input: CreateBodyTypeParsed,
   actorId: number,
   iconFilename: string,
+  upcomingImageFilename: string,
   ipAddress?: string | null,
 ) {
   await assertSlugAvailable(input.slug);
@@ -103,6 +105,7 @@ export async function createBodyType(
       slug: input.slug,
       description: input.description,
       iconUrl: buildPublicPath('bodytypes', iconFilename),
+      upcomingPlaceholderImageUrl: buildPublicPath('bodytypes', upcomingImageFilename),
     },
     select: BODY_TYPE_SELECT,
   });
@@ -155,7 +158,10 @@ export async function deleteBodyType(id: number, actorId: number, ipAddress?: st
 
   await prisma.bodyType.delete({ where: { id } });
 
-  await deleteUploadedFile(bodyType.iconUrl);
+  await Promise.all([
+    deleteUploadedFile(bodyType.iconUrl),
+    deleteUploadedFile(bodyType.upcomingPlaceholderImageUrl),
+  ]);
 
   await createLog({
     adminId: actorId,
@@ -191,4 +197,30 @@ export async function uploadBodyTypeIcon(
   });
 
   return bodyType as BodyTypeUploadIconResult;
+}
+
+export async function uploadBodyTypeUpcomingImage(
+  id: number,
+  savedFilename: string,
+  actorId: number,
+  ipAddress?: string | null,
+): Promise<BodyTypeUploadUpcomingImageResult> {
+  const existing = await getBodyTypeById(id);
+  const newImageUrl = buildPublicPath('bodytypes', savedFilename);
+
+  const bodyType = await prisma.bodyType.update({
+    where: { id },
+    data: { upcomingPlaceholderImageUrl: newImageUrl },
+    select: { id: true, upcomingPlaceholderImageUrl: true },
+  });
+
+  await deleteUploadedFile(existing.upcomingPlaceholderImageUrl);
+
+  await createLog({
+    adminId: actorId,
+    description: `Updated upcoming image for body type "${existing.name}" (id ${id})`,
+    ipAddress,
+  });
+
+  return bodyType as BodyTypeUploadUpcomingImageResult;
 }

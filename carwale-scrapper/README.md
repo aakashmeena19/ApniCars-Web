@@ -58,6 +58,12 @@ python main.py --status all --brands all --models all --fuel all --transmission 
 
 The complete import can take many hours because it downloads all available public gallery images and 360 frames. Each model is committed independently, and errors are recorded under `logs/`.
 
+### Live terminal progress
+
+During a run, the terminal shows the current brand and model, overall completed and remaining models, metadata phases, trim progress, downloaded/reused/skipped image counts, 360-frame progress, database-write progress, HTTP retries, ADB recovery, and elapsed time. Image counters update in place so long imports stay readable without printing one permanent line for every successful image.
+
+Warnings, skipped URLs, request failures, ADB actions, and model summaries are also written to the run's JSONL file under `logs/`.
+
 ### Resume an interrupted complete scrape
 
 Completed models are stored in `state/checkpoint.json`. This command skips those models and retries the interrupted or failed models:

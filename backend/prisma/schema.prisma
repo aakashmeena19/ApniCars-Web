@@ -73,12 +73,13 @@ model City {
 // ============================================================
 
 model BodyType {
-  id          Int      @id @default(autoincrement())
-  name        String   @db.VarChar(50)
-  slug        String   @unique @db.VarChar(50)
-  iconUrl     String?  @map("icon_url") @db.VarChar(255)
-  description String?  @db.VarChar(255)
-  createdAt   DateTime @default(now()) @map("created_at")
+  id                          Int      @id @default(autoincrement())
+  name                        String   @db.VarChar(50)
+  slug                        String   @unique @db.VarChar(50)
+  iconUrl                     String?  @map("icon_url") @db.VarChar(255)
+  upcomingPlaceholderImageUrl String?  @map("upcoming_placeholder_image_url") @db.VarChar(255)
+  description                 String?  @db.VarChar(255)
+  createdAt                   DateTime @default(now()) @map("created_at")
 
   carModels CarModel[]
 

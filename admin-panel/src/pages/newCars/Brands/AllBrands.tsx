@@ -148,7 +148,7 @@ export default function AllBrands() {
           <img
             src={getUploadUrl(b.logoUrl)!}
             alt=""
-            className="w-7 h-7 rounded-lg object-cover border border-[#dce7e3]"
+            className="w-7 h-7 rounded-lg border border-[#dce7e3] bg-white object-contain p-0.5"
           />
         ) : (
           <div className="w-7 h-7 rounded-lg bg-[#f3f7f5] border border-[#dce7e3]" />

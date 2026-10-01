@@ -12,6 +12,7 @@ import {
   createBodyType,
   updateBodyType,
   uploadBodyTypeIcon,
+  uploadBodyTypeUpcomingImage,
   deleteBodyType,
 } from './bodyType.controller';
 
@@ -28,7 +29,10 @@ router.get('/:id', requirePermission('bodytypes.view'), asyncHandler(getBodyType
 router.post(
   '/',
   requirePermission('bodytypes.create'),
-  imageUploader('bodytypes').single('icon'),
+  imageUploader('bodytypes').fields([
+    { name: 'icon', maxCount: 1 },
+    { name: 'upcomingImage', maxCount: 1 },
+  ]),
   asyncHandler(createBodyType),
 );
 router.patch('/:id', requirePermission('bodytypes.update'), asyncHandler(updateBodyType));
@@ -37,6 +41,12 @@ router.patch(
   requirePermission('bodytypes.update'),
   imageUploader('bodytypes').single('icon'),
   asyncHandler(uploadBodyTypeIcon),
+);
+router.patch(
+  '/:id/upcoming-image',
+  requirePermission('bodytypes.update'),
+  imageUploader('bodytypes').single('upcomingImage'),
+  asyncHandler(uploadBodyTypeUpcomingImage),
 );
 router.delete('/:id', requirePermission('bodytypes.delete'), asyncHandler(deleteBodyType));
 

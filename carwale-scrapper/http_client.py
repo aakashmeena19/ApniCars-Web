@@ -80,8 +80,16 @@ class CarWaleHttpClient:
         else:
             self._consecutive_blocks = 0
 
-    def _backoff(self, attempt):
-        time.sleep(min(30, 1.5 * (2 ** (attempt - 1))))
+    def _backoff(self, attempt, error, url):
+        delay = min(30, 1.5 * (2 ** (attempt - 1)))
+        detail = f"HTTP {error.status_code}" if isinstance(error, HttpStatusError) else type(error).__name__
+        self._log(
+            "warn",
+            f"Request retry {attempt + 1}: {detail}; waiting {delay:g}s",
+            url=url,
+            error=repr(error),
+        )
+        time.sleep(delay)
 
     def _request(self, url, image, stream):
         return self.session.get(
@@ -123,7 +131,7 @@ class CarWaleHttpClient:
             except requests.RequestException as error:
                 last_error = error
             if attempt < attempts:
-                self._backoff(attempt)
+                self._backoff(attempt, last_error, url)
         raise last_error or RuntimeError(f"Request failed for {url}")
 
     def text(self, url):

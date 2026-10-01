@@ -1,5 +1,7 @@
 import argparse
 import sys
+import time
+from collections import Counter
 
 from dotenv import load_dotenv
 
@@ -123,12 +125,18 @@ def main():
     logger = RunLogger()
     http = CarWaleHttpClient(logger=logger, enable_adb_rotation=not args.no_adb_rotation)
     http.initialize_rotation()
-    scraper = CarWaleScraper(http)
+    scraper = CarWaleScraper(http, logger)
     logger.write("info", "Fetching CarWale brand index")
     brands, body_types = scraper.fetch_index()
     models, fuel_filter, transmission_filter = resolve_scope(args, scraper, brands, logger)
     if not models:
         raise RuntimeError("No models matched the selected filters")
+
+    brand_slugs = list(dict.fromkeys(model["brand"]["slug"] for model in models))
+    brand_positions = {slug: position for position, slug in enumerate(brand_slugs, start=1)}
+    brand_totals = Counter(model["brand"]["slug"] for model in models)
+    brand_seen = Counter()
+    logger.write("info", f"Scrape plan ready: {len(brand_slugs)} brands, {len(models)} models")
 
     checkpoint = load_checkpoint()
     completed = set(checkpoint.get("completedModels", [])) if args.resume else set()
@@ -136,6 +144,12 @@ def main():
     importer = None
     image_store = ImageStore(http, logger)
     brand_ids = {}
+    run_started_at = time.monotonic()
+    succeeded = 0
+    failed = 0
+    missing = 0
+    checkpoint_skipped = 0
+    current_brand_slug = None
 
     try:
         if not args.dry_run:
@@ -144,11 +158,31 @@ def main():
 
         for position, model in enumerate(models, start=1):
             brand = model["brand"]
+            brand_slug = brand["slug"]
+            brand_seen[brand_slug] += 1
+            if current_brand_slug != brand_slug:
+                current_brand_slug = brand_slug
+                logger.write(
+                    "info",
+                    f"Brand {brand_positions[brand_slug]}/{len(brand_slugs)}: {brand['name']} "
+                    f"({brand_totals[brand_slug]} models)",
+                )
             key = f"{brand['slug']}/{model['slug']}/{model['source_id']}"
             if key in completed:
-                logger.write("info", f"Skipping completed model {position}/{len(models)}: {brand['name']} {model['name']}")
+                checkpoint_skipped += 1
+                logger.write(
+                    "info",
+                    f"Checkpoint skip: {brand['name']} {model['name']} | overall {position}/{len(models)}, "
+                    f"remaining {len(models) - position}",
+                )
                 continue
-            logger.write("info", f"Processing model {position}/{len(models)}: {brand['name']} {model['name']} [{model['status']}]")
+            model_started_at = time.monotonic()
+            logger.write(
+                "info",
+                f"Model {brand_seen[brand_slug]}/{brand_totals[brand_slug]} in {brand['name']}: "
+                f"{model['name']} [{model['status']}] | overall {position}/{len(models)}, "
+                f"remaining {len(models) - position}",
+            )
             try:
                 bundle = scraper.fetch_model_bundle(model)
                 if args.no_360:
@@ -159,9 +193,11 @@ def main():
                         f"Dry run: {len(bundle['versions'])} variants, {len(bundle['colors'])} colors, "
                         f"{len(bundle['gallery'])} images, 360={bool(bundle['three_sixty'])}",
                     )
+                    succeeded += 1
                     continue
 
                 if brand["slug"] not in brand_ids:
+                    logger.write("info", f"Preparing brand record and logo: {brand['name']}")
                     logo_url = None
                     if not args.skip_images:
                         try:
@@ -179,11 +215,15 @@ def main():
                     if args.skip_images
                     else image_store.prepare_model_media(brand, model, bundle)
                 )
+                logger.write("info", f"Saving catalog data: {brand['name']} {model['name']}")
                 result = importer.import_model(brand_ids[brand["slug"]], brand, model, bundle, media)
+                succeeded += 1
+                elapsed = time.monotonic() - model_started_at
                 logger.write(
                     "info",
                     f"Saved {brand['name']} {model['name']}: "
-                    f"{result['variant_count']} variants, {result['image_count']} images",
+                    f"{result['variant_count']} variants, {result['image_count']} images in {elapsed / 60:.1f} min | "
+                    f"completed {succeeded + missing + failed + checkpoint_skipped}/{len(models)}",
                 )
                 completed.add(key)
                 save_checkpoint(completed)
@@ -191,23 +231,35 @@ def main():
                 if connection:
                     connection.rollback()
                 if error.status_code == 404:
+                    missing += 1
                     logger.write(
                         "warn",
                         f"Model skipped: URL not found for {brand['name']} {model['name']}",
                         url=error.url,
                     )
+                    if not args.dry_run:
+                        completed.add(key)
+                        save_checkpoint(completed)
                 else:
+                    failed += 1
                     logger.write("error", f"Model failed: {brand['name']} {model['name']}", error=repr(error))
             except Exception as error:
                 if connection:
                     connection.rollback()
+                failed += 1
                 logger.write("error", f"Model failed: {brand['name']} {model['name']}", error=repr(error))
     finally:
+        logger.finish_progress()
         if connection:
             connection.close()
         http.close()
 
-    logger.write("info", f"Run complete. Log: {logger.path}")
+    elapsed = time.monotonic() - run_started_at
+    logger.write(
+        "info",
+        f"Run complete in {elapsed / 60:.1f} min | successful {succeeded}, missing {missing}, "
+        f"failed {failed}, checkpoint-skipped {checkpoint_skipped}. Log: {logger.path}",
+    )
 
 
 if __name__ == "__main__":

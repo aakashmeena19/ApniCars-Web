@@ -4,6 +4,7 @@ import {
   useCreateBodyTypeMutation,
   useUpdateBodyTypeMutation,
   useUploadBodyTypeIconMutation,
+  useUploadBodyTypeUpcomingImageMutation,
   type BodyTypeRecord,
 } from "./bodyType.api";
 import { extractApiError, getUploadUrl } from "../../../lib/apiClient";
@@ -16,6 +17,7 @@ interface FieldErrors {
   slug?: string;
   description?: string;
   icon?: string;
+  upcomingImage?: string;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -52,14 +54,22 @@ export default function BodyTypeModal({
 
   const [createBodyType, { isLoading: creating }] = useCreateBodyTypeMutation();
   const [updateBodyType, { isLoading: updating }] = useUpdateBodyTypeMutation();
-  const saving = creating || updating;
-
   const [uploadBodyTypeIcon, { isLoading: uploadingIcon }] = useUploadBodyTypeIconMutation();
   const [iconUrl, setIconUrl] = useState<string | null>(bodyType?.iconUrl ?? null);
   const [pendingIconFile, setPendingIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [iconError, setIconError] = useState("");
   const iconInputRef = useRef<HTMLInputElement>(null);
+
+  const [uploadUpcomingImage, { isLoading: uploadingUpcomingImage }] = useUploadBodyTypeUpcomingImageMutation();
+  const [upcomingImageUrl, setUpcomingImageUrl] = useState<string | null>(
+    bodyType?.upcomingPlaceholderImageUrl ?? null,
+  );
+  const [pendingUpcomingImageFile, setPendingUpcomingImageFile] = useState<File | null>(null);
+  const [upcomingImagePreview, setUpcomingImagePreview] = useState<string | null>(null);
+  const [upcomingImageError, setUpcomingImageError] = useState("");
+  const upcomingImageInputRef = useRef<HTMLInputElement>(null);
+  const saving = creating || updating || uploadingIcon || uploadingUpcomingImage;
 
   const handleNameChange = (value: string) => {
     setName(value);
@@ -100,8 +110,36 @@ export default function BodyTypeModal({
     }
   };
 
+  const handleUpcomingImageSelect = async (file: File | undefined) => {
+    if (!file) return;
+    setUpcomingImageError("");
+
+    if (!isEditMode) {
+      setPendingUpcomingImageFile(file);
+      setUpcomingImagePreview(URL.createObjectURL(file));
+      return;
+    }
+
+    if (!bodyType) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    setUpcomingImagePreview(objectUrl);
+
+    try {
+      const result = await uploadUpcomingImage({ id: bodyType.id, file }).unwrap();
+      setUpcomingImageUrl(result.upcomingPlaceholderImageUrl);
+    } catch (err) {
+      setUpcomingImageError(extractApiError(err));
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      setUpcomingImagePreview(null);
+      if (upcomingImageInputRef.current) upcomingImageInputRef.current.value = "";
+    }
+  };
+
   const resetForm = () => {
     if (iconPreview) URL.revokeObjectURL(iconPreview);
+    if (upcomingImagePreview) URL.revokeObjectURL(upcomingImagePreview);
     setName("");
     setSlug("");
     setSlugTouched(false);
@@ -111,6 +149,9 @@ export default function BodyTypeModal({
     setPendingIconFile(null);
     setIconPreview(null);
     setIconError("");
+    setPendingUpcomingImageFile(null);
+    setUpcomingImagePreview(null);
+    setUpcomingImageError("");
   };
 
   if (!open) return null;
@@ -131,6 +172,8 @@ export default function BodyTypeModal({
     if (!description.trim()) next.description = "Description is required.";
     if (!isEditMode && !pendingIconFile) next.icon = "Icon is required.";
     if (isEditMode && !iconUrl) next.icon = "Icon is required.";
+    if (!isEditMode && !pendingUpcomingImageFile) next.upcomingImage = "Upcoming image is required.";
+    if (isEditMode && !upcomingImageUrl) next.upcomingImage = "Upcoming image is required.";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -159,6 +202,7 @@ export default function BodyTypeModal({
           slug: slug.trim(),
           description: description.trim(),
           icon: pendingIconFile as File,
+          upcomingImage: pendingUpcomingImageFile as File,
         }).unwrap();
       }
       resetForm();
@@ -234,6 +278,50 @@ export default function BodyTypeModal({
               )}
             </div>
           </div>
+
+          <Field label="Upcoming hidden image">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-24 h-14 rounded-lg border overflow-hidden flex items-center justify-center shrink-0 bg-white p-1"
+                style={{ borderColor: errors.upcomingImage ? "#f0997b" : "#d6e3df" }}
+              >
+                {(upcomingImagePreview || getUploadUrl(upcomingImageUrl)) && (
+                  <img
+                    src={upcomingImagePreview ?? getUploadUrl(upcomingImageUrl) ?? undefined}
+                    alt={isEditMode ? `${bodyType?.name} upcoming placeholder` : "Upcoming placeholder preview"}
+                    className="w-full h-full object-contain"
+                  />
+                )}
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => upcomingImageInputRef.current?.click()}
+                  disabled={uploadingUpcomingImage}
+                  className="cursor-pointer text-[11px] font-bold px-3 py-1.5 rounded-lg border border-[#d6e3df] text-[#304942] hover:bg-[#f3f7f5] transition-colors disabled:opacity-50"
+                >
+                  {uploadingUpcomingImage
+                    ? "Uploading..."
+                    : upcomingImageUrl || pendingUpcomingImageFile
+                      ? "Change image"
+                      : "Upload image"}
+                </button>
+                <input
+                  ref={upcomingImageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  onChange={(e) => handleUpcomingImageSelect(e.target.files?.[0])}
+                  className="hidden"
+                />
+                <p className="text-[10px] text-[#71827d] mt-1">Required. JPG, PNG, WEBP or AVIF, up to 2MB.</p>
+                {(upcomingImageError || errors.upcomingImage) && (
+                  <p className="text-[11px] font-medium text-[#D4300F] mt-1">
+                    {upcomingImageError || errors.upcomingImage}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Field>
 
           <Field label="Name">
             <input

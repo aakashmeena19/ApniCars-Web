@@ -1,6 +1,7 @@
 // src/modules/public/search/search.service.ts
 
 import { prisma } from '@/prisma/client';
+import { resolvePublicCarCoverImage } from '@/core/utils/publicCarImage';
 import type { SearchCarsQueryParsed } from './search.validation';
 import type { SearchCarsResult } from './search.types';
 
@@ -8,9 +9,11 @@ const SEARCH_SELECT = {
   id: true,
   name: true,
   slug: true,
+  launchStatus: true,
   coverImageUrl: true,
   priceMin: true,
   brand: { select: { name: true, slug: true } },
+  bodyType: { select: { upcomingPlaceholderImageUrl: true } },
 } as const;
 
 export interface SearchMeta {
@@ -39,7 +42,14 @@ export async function searchCars(query: SearchCarsQueryParsed, meta: SearchMeta)
     take: limit,
   });
 
-  const results = cars.map((c) => ({ ...c, priceMin: c.priceMin?.toString() ?? null }));
+  const results = cars.map((car) => ({
+    id: car.id,
+    name: car.name,
+    slug: car.slug,
+    brand: car.brand,
+    coverImageUrl: resolvePublicCarCoverImage(car),
+    priceMin: car.priceMin?.toString() ?? null,
+  }));
 
   // Best-effort — a logging failure must never break the search response
   // the user is actively waiting on.

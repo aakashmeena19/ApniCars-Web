@@ -3,6 +3,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/prisma/client';
 import { ApiError } from '@/core/errors/ApiError';
+import { resolvePublicCarCoverImage } from '@/core/utils/publicCarImage';
 import type { WishlistItemRecord } from './wishlist.types';
 
 const WISHLIST_SELECT = {
@@ -19,6 +20,7 @@ const WISHLIST_SELECT = {
       priceMax: true,
       coverImageUrl: true,
       brand: { select: { id: true, name: true, slug: true } },
+      bodyType: { select: { upcomingPlaceholderImageUrl: true } },
     },
   },
 } as const;
@@ -31,9 +33,14 @@ function shapeWishlistItem(row: RawWishlistItem): WishlistItemRecord {
     modelId: row.modelId,
     createdAt: row.createdAt,
     model: {
-      ...row.model,
+      id: row.model.id,
+      name: row.model.name,
+      slug: row.model.slug,
+      launchStatus: row.model.launchStatus,
+      brand: row.model.brand,
       priceMin: row.model.priceMin?.toString() ?? null,
       priceMax: row.model.priceMax?.toString() ?? null,
+      coverImageUrl: resolvePublicCarCoverImage(row.model),
     },
   };
 }

@@ -7,8 +7,13 @@ STATUS_BY_ID = {1: "upcoming", 2: "available", 3: "discontinued"}
 
 
 class CarWaleScraper:
-    def __init__(self, http):
+    def __init__(self, http, logger=None):
         self.http = http
+        self.logger = logger
+
+    def _log(self, level, message, **data):
+        if self.logger:
+            self.logger.write(level, message, **data)
 
     def _state(self, path):
         url = absolute_url(path)
@@ -80,7 +85,10 @@ class CarWaleScraper:
         return output
 
     def fetch_model_bundle(self, model):
+        label = f"{model['brand_name']} {model['name']}".strip()
+        self._log("info", f"Fetching model details: {label}")
         _, model_state = self._state(model["page_path"])
+        self._log("info", f"Fetching gallery metadata: {label}")
         _, image_state = self._state(f"{model['page_path']}images/")
         page = model_state["modelPage"]
         image_details = image_state["imageDetails"]
@@ -90,22 +98,45 @@ class CarWaleScraper:
             for version in page.get("versions", [])
             if version.get("trimMaskingName")
         }
-        for trim_name in trim_names:
+        trim_names = sorted(trim_names)
+        for position, trim_name in enumerate(trim_names, start=1):
+            if self.logger:
+                self.logger.progress(
+                    f"Trim specifications {position}/{len(trim_names)}: {label}",
+                    position,
+                    len(trim_names),
+                )
             try:
                 _, trim_state = self._state(f"{model['page_path']}{trim_name}/")
                 trim_page = trim_state["trimPage"]
                 trim_id = trim_page.get("trimDetail", {}).get("trimId")
                 trim_features[trim_id] = self._flatten_master(trim_page.get("specsFeaturesMaster", []))
-            except Exception:
+            except Exception as error:
+                self._log(
+                    "warn",
+                    f"Trim specifications skipped: {label} / {trim_name}",
+                    error=repr(error),
+                )
                 continue
+        if self.logger:
+            self.logger.finish_progress()
 
         three_sixty = None
         details = image_details.get("modelDetails", {})
         if details.get("is360Available") and details.get("threeSixtyPageUrl"):
             try:
+                self._log("info", f"Fetching 360 metadata: {label}")
                 three_sixty = self.fetch_three_sixty(details["threeSixtyPageUrl"])
-            except Exception:
-                pass
+            except Exception as error:
+                self._log("warn", f"360 metadata skipped: {label}", error=repr(error))
+
+        self._log(
+            "info",
+            f"Metadata ready: {label} | {len(page.get('versions', []))} variants, "
+            f"{len(image_details.get('colors') or page.get('color', {}).get('colors', []))} colors, "
+            f"{len(image_details.get('images', []))} gallery images, "
+            f"360={'yes' if three_sixty else 'no'}",
+        )
 
         return {
             "details": page.get("modelDetails", {}),

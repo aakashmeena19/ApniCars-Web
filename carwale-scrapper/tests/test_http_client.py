@@ -47,7 +47,7 @@ class HttpClientTests(unittest.TestCase):
         client.session.close()
         client.session = FakeSession(statuses)
         client._throttle = lambda _image: None
-        client._backoff = lambda _attempt: None
+        client._backoff = lambda *_args: None
         client._reset_session = lambda: None
         return client
 

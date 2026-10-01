@@ -171,20 +171,31 @@ class CatalogImporter:
                     ),
                 )
                 model_id = self._returning_id(cursor)
+                self.logger.write(
+                    "info",
+                    f"Writing database records: {model['name']} | {len(media['colors'])} colors, "
+                    f"{len(media['images'])} images, {len(eligible)} eligible variants",
+                )
                 color_ids = self._save_colors(cursor, model_id, media["colors"])
                 self._save_images(cursor, model_id, media["images"], color_ids)
 
                 variant_count = 0
-                for item in eligible:
+                for position, item in enumerate(eligible, start=1):
                     seating = integer_from(spec_value(item["specs"], "Seating Capacity"))
                     if not seating:
                         self.logger.write(
                             "warn",
                             f"Variant skipped because seating capacity is missing: {model['name']} {item['version'].get('versionName')}",
                         )
-                        continue
-                    self._save_variant(cursor, model_id, item, seating)
-                    variant_count += 1
+                    else:
+                        self._save_variant(cursor, model_id, item, seating)
+                        variant_count += 1
+                    self.logger.progress(
+                        f"Database variants {position}/{len(eligible)}: {model['name']} | saved {variant_count}",
+                        position,
+                        len(eligible),
+                    )
+                self.logger.finish_progress()
             self.connection.commit()
             return {
                 "model_id": model_id,
@@ -195,10 +206,9 @@ class CatalogImporter:
             self.connection.rollback()
             raise
 
-    @staticmethod
-    def _save_colors(cursor, model_id, colors):
+    def _save_colors(self, cursor, model_id, colors):
         color_ids = {}
-        for color in colors:
+        for position, color in enumerate(colors, start=1):
             color_name = clean_text(color.get("name"))[:50]
             if not color_name:
                 continue
@@ -228,11 +238,16 @@ class CatalogImporter:
                         "INSERT INTO car_color_shades (color_id, color_hex, sort_order) VALUES (%s, %s, %s)",
                         (color_id, normalized, sort_order),
                     )
+            self.logger.progress(
+                f"Database colors {position}/{len(colors)}",
+                position,
+                len(colors),
+            )
+        self.logger.finish_progress()
         return color_ids
 
-    @staticmethod
-    def _save_images(cursor, model_id, images, color_ids):
-        for image in images:
+    def _save_images(self, cursor, model_id, images, color_ids):
+        for position, image in enumerate(images, start=1):
             cursor.execute(
                 """
                 INSERT INTO car_images
@@ -257,6 +272,12 @@ class CatalogImporter:
                     image.get("sort_order", 0),
                 ),
             )
+            self.logger.progress(
+                f"Database images {position}/{len(images)}",
+                position,
+                len(images),
+            )
+        self.logger.finish_progress()
 
     def _save_variant(self, cursor, model_id, item, seating):
         version = item["version"]

@@ -95,9 +95,9 @@ export default function AllBodyTypes() {
     {
       header: "Icon",
       render: (bt) => (
-        <div className="w-10 h-10 rounded-lg border border-[#dce7e3] bg-[#f3f7f5] overflow-hidden flex items-center justify-center">
+        <div className="w-20 h-12 rounded-lg border border-[#dce7e3] bg-white overflow-hidden flex items-center justify-center p-1">
           {bt.iconUrl ? (
-            <img src={getUploadUrl(bt.iconUrl) ?? undefined} alt="" className="w-full h-full object-cover" />
+            <img src={getUploadUrl(bt.iconUrl) ?? undefined} alt="" className="w-full h-full object-contain" />
           ) : (
             <span className="text-[8px] text-[#71827d]">—</span>
           )}
@@ -111,6 +111,22 @@ export default function AllBodyTypes() {
           <p className="font-semibold text-[#16322c]">{bt.name}</p>
           <p className="text-[#71827d]">{bt.slug}</p>
         </>
+      ),
+    },
+    {
+      header: "Upcoming image",
+      render: (bt) => (
+        <div className="w-20 h-12 rounded-lg border border-[#dce7e3] bg-white overflow-hidden flex items-center justify-center p-1">
+          {bt.upcomingPlaceholderImageUrl ? (
+            <img
+              src={getUploadUrl(bt.upcomingPlaceholderImageUrl) ?? undefined}
+              alt=""
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <span className="text-[8px] text-[#71827d]">Not set</span>
+          )}
+        </div>
       ),
     },
     {

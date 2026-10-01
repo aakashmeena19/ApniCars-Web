@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/prisma/client';
 import { ApiError } from '@/core/errors/ApiError';
+import { resolvePublicCarCoverImage } from '@/core/utils/publicCarImage';
 import type { ProfileAlert, ProfileEnquiry, ProfileOverview, ProfileReview, ProfileSavedCar } from './profile.types';
 
 const PROFILE_LIMIT = 6;
@@ -16,6 +17,7 @@ const CAR_SUMMARY_SELECT = {
   priceMax: true,
   coverImageUrl: true,
   brand: { select: BRAND_SELECT },
+  bodyType: { select: { upcomingPlaceholderImageUrl: true } },
 } as const;
 
 function toIso(value: Date | null): string | null {
@@ -41,9 +43,14 @@ function shapeSavedCar(row: SavedCarRow): ProfileSavedCar {
     modelId: row.modelId,
     createdAt: row.createdAt.toISOString(),
     model: {
-      ...row.model,
+      id: row.model.id,
+      name: row.model.name,
+      slug: row.model.slug,
+      launchStatus: row.model.launchStatus,
+      brand: row.model.brand,
       priceMin: decimalToString(row.model.priceMin),
       priceMax: decimalToString(row.model.priceMax),
+      coverImageUrl: resolvePublicCarCoverImage(row.model),
     },
   };
 }

@@ -2,6 +2,7 @@
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/prisma/client';
+import { resolvePublicCarCoverImage } from '@/core/utils/publicCarImage';
 import type { HomeCarListQueryParsed } from './car.validation';
 import type { PublicHomeCarRecord } from './car.types';
 
@@ -23,7 +24,7 @@ export const HOME_CAR_SELECT = {
   ratingAvg: true,
   coverImageUrl: true,
   brand: { select: { id: true, name: true, slug: true } },
-  bodyType: { select: { id: true, name: true } },
+  bodyType: { select: { id: true, name: true, upcomingPlaceholderImageUrl: true } },
   variants: {
     orderBy: [{ isTopSeller: 'desc' }, { price: 'asc' }],
     take: 1,
@@ -69,13 +70,13 @@ export function shapeHomeCarModel(car: RawHomeCarModel): PublicHomeCarRecord {
     name: car.name,
     slug: car.slug,
     brand: car.brand,
-    bodyType: car.bodyType,
+    bodyType: car.bodyType ? { id: car.bodyType.id, name: car.bodyType.name } : null,
     launchStatus: car.launchStatus,
     expectedLaunchDate: car.expectedLaunchDate?.toISOString() ?? null,
     priceMin: car.priceMin?.toString() ?? null,
     priceMax: car.priceMax?.toString() ?? null,
     ratingAvg: car.ratingAvg?.toString() ?? null,
-    coverImageUrl: car.coverImageUrl,
+    coverImageUrl: resolvePublicCarCoverImage(car),
     isElectric: Boolean(electric),
     specs: variant
       ? {
