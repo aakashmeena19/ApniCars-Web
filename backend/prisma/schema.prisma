@@ -366,6 +366,7 @@ model CarVariant {
   modelId            Int             @map("model_id")
   model              CarModel        @relation(fields: [modelId], references: [id])
   variantName        String          @map("variant_name") @db.VarChar(100)
+  slug               String?         @db.VarChar(160)
   price              Decimal         @db.Decimal(12, 2)
   seatingCapacity    Int             @map("seating_capacity")
   transmissionId     Int             @map("transmission_id")
@@ -395,6 +396,7 @@ model CarVariant {
   loanLeads           LoanLead[]
 
   @@unique([modelId, variantName])
+  @@unique([modelId, slug])
   @@index([modelId])
   @@map("car_variants")
 }

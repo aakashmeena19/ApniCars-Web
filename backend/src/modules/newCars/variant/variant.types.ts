@@ -18,6 +18,7 @@ export interface VariantRecord {
   id: number;
   modelId: number;
   variantName: string;
+  slug: string | null;
   // Decimal fields come back from Prisma serialized as strings — same
   // convention as CarModel's priceMin/priceMax.
   price: string;

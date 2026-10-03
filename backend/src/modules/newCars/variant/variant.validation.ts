@@ -2,6 +2,8 @@
 
 import { z } from 'zod';
 
+const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export const variantListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -31,6 +33,13 @@ export const variantOptionsQuerySchema = z.object({
 const variantShape = {
   modelId: z.coerce.number().int().positive('modelId is required'),
   variantName: z.string().trim().min(2, 'Variant name must be at least 2 characters').max(100),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(2, 'Slug is required')
+    .max(160)
+    .regex(slugRegex, 'Slug must be lowercase letters/numbers separated by hyphens'),
   price: z.coerce.number().positive('Price is required and must be greater than 0'),
   seatingCapacity: z.coerce
     .number()

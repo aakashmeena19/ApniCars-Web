@@ -145,6 +145,7 @@ export default function AllVariants() {
       render: (v) => (
         <>
           <p className="font-semibold text-[#16322c]">{v.variantName}</p>
+          <p className="text-[10px] text-[#71827d]">{v.slug ?? "Slug not set"}</p>
           {v.isTopSeller && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">
               Top seller

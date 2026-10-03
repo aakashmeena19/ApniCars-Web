@@ -16,6 +16,7 @@ const VARIANT_SELECT = {
   id: true,
   modelId: true,
   variantName: true,
+  slug: true,
   price: true,
   seatingCapacity: true,
   transmissionId: true,
@@ -90,7 +91,7 @@ export async function listVariantOptions(query: VariantOptionsQueryParsed) {
 
   return prisma.carVariant.findMany({
     where,
-    select: { id: true, variantName: true, modelId: true },
+    select: { id: true, variantName: true, slug: true, modelId: true },
     orderBy: { variantName: 'asc' },
   });
 }
@@ -151,6 +152,20 @@ async function assertVariantNameUnique(modelId: number, variantName: string, exc
   }
 }
 
+async function assertVariantSlugUnique(modelId: number, slug: string, excludeId?: number) {
+  const conflict = await prisma.carVariant.findFirst({
+    where: {
+      modelId,
+      slug,
+      id: excludeId ? { not: excludeId } : undefined,
+    },
+    select: { id: true },
+  });
+  if (conflict) {
+    throw ApiError.conflict(`A variant with the slug "${slug}" already exists for this car model`);
+  }
+}
+
 export async function createVariant(
   input: CreateVariantParsed,
   actorId: number,
@@ -159,11 +174,13 @@ export async function createVariant(
   await assertModelExists(input.modelId);
   await assertTransmissionOptionExists(input.transmissionId);
   await assertVariantNameUnique(input.modelId, input.variantName);
+  await assertVariantSlugUnique(input.modelId, input.slug);
 
   const variant = await prisma.carVariant.create({
     data: {
       modelId: input.modelId,
       variantName: input.variantName,
+      slug: input.slug,
       price: input.price,
       seatingCapacity: input.seatingCapacity,
       transmissionId: input.transmissionId,
@@ -186,7 +203,7 @@ export async function createVariant(
 
   await createLog({
     adminId: actorId,
-    description: `Created variant "${variant.variantName}" (id ${variant.id}) under model id ${variant.modelId}`,
+    description: `Created variant "${variant.variantName}" (id ${variant.id}, slug "${variant.slug}") under model id ${variant.modelId}`,
     ipAddress,
   });
 
@@ -205,12 +222,14 @@ export async function updateVariant(
   await assertModelExists(input.modelId);
   await assertTransmissionOptionExists(input.transmissionId);
   await assertVariantNameUnique(input.modelId, input.variantName, id);
+  await assertVariantSlugUnique(input.modelId, input.slug, id);
 
   const variant = await prisma.carVariant.update({
     where: { id },
     data: {
       modelId: input.modelId,
       variantName: input.variantName,
+      slug: input.slug,
       price: input.price,
       seatingCapacity: input.seatingCapacity,
       transmissionId: input.transmissionId,
@@ -233,7 +252,7 @@ export async function updateVariant(
 
   await createLog({
     adminId: actorId,
-    description: `Updated variant "${variant.variantName}" (id ${id})`,
+    description: `Updated variant "${variant.variantName}" (id ${id}, slug "${variant.slug}")`,
     ipAddress,
   });
 

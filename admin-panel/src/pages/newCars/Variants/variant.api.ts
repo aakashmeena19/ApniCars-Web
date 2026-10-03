@@ -13,6 +13,7 @@ export interface VariantRecord {
   id: number;
   modelId: number;
   variantName: string;
+  slug: string | null;
   // Decimal fields come back from Prisma serialized as strings — same
   // convention as CarModelRecord's priceMin/priceMax.
   price: string;
@@ -63,6 +64,7 @@ export interface ListVariantsParams {
 export interface VariantFormInput {
   modelId: number;
   variantName: string;
+  slug: string;
   price: number;
   seatingCapacity: number;
   transmissionId: number;
@@ -95,6 +97,7 @@ interface VariantSingleRawResponse {
 export interface VariantOption {
   id: number;
   variantName: string;
+  slug: string | null;
   modelId: number;
 }
 

@@ -9,6 +9,7 @@ import { useGetCarModelOptionsQuery } from "../carModels/carModel.api";
 import { useGetBrandOptionsQuery } from "../Brands/brand.api";
 import { useGetAttributeOptionsGroupedQuery } from "../AttributeOptions/attributeOption.api";
 import { extractApiError } from "../../../lib/apiClient";
+import { slugify } from "../../../lib/slugify";
 
 // The core fields (brand/model/name/price/seats/transmission) are
 // required on both Add and Edit, per explicit product requirement.
@@ -17,6 +18,7 @@ interface FieldErrors {
   brandId?: string;
   modelId?: string;
   variantName?: string;
+  slug?: string;
   price?: string;
   seatingCapacity?: string;
   transmissionId?: string;
@@ -56,6 +58,10 @@ function strOrNull(value: string): string | null {
 const inputClass =
   "w-full text-sm font-medium text-[#16322c] bg-[#f3f7f5] border rounded-lg px-3 py-2.5 outline-none transition-all focus:bg-white";
 
+function slugifyVariantName(value: string): string {
+  return slugify(value.replace(/\+/g, " plus "));
+}
+
 export default function VariantModal({
   open,
   onClose,
@@ -84,6 +90,8 @@ export default function VariantModal({
 
   const [modelId, setModelId] = useState<number | "">(variant?.modelId ?? "");
   const [variantName, setVariantName] = useState(variant ? variant.variantName : "");
+  const [slug, setSlug] = useState(variant?.slug ?? slugifyVariantName(variant?.variantName ?? ""));
+  const [slugTouched, setSlugTouched] = useState(Boolean(variant?.slug));
   const [price, setPrice] = useState(variant ? variant.price : "");
   const [seatingCapacity, setSeatingCapacity] = useState(
     variant ? String(variant.seatingCapacity) : "",
@@ -123,6 +131,8 @@ export default function VariantModal({
     setBrandId("");
     setModelId("");
     setVariantName("");
+    setSlug("");
+    setSlugTouched(false);
     setPrice("");
     setSeatingCapacity("");
     setTransmissionId("");
@@ -155,6 +165,13 @@ export default function VariantModal({
     if (!brandId) next.brandId = "Brand is required.";
     if (!modelId) next.modelId = "Car model is required.";
     if (variantName.trim().length < 2) next.variantName = "Variant name must be at least 2 characters.";
+    if (!slug.trim()) {
+      next.slug = "Slug is required.";
+    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug.trim())) {
+      next.slug = "Use lowercase letters, numbers and hyphens only.";
+    } else if (slug.trim().length > 160) {
+      next.slug = "Slug must be 160 characters or fewer.";
+    }
     if (price === "" || Number(price) <= 0) next.price = "Price is required and must be greater than 0.";
     if (
       seatingCapacity === "" ||
@@ -179,6 +196,7 @@ export default function VariantModal({
     const payload = {
       modelId: Number(modelId),
       variantName: variantName.trim(),
+      slug: slug.trim(),
       price: Number(price),
       seatingCapacity: Number(seatingCapacity),
       transmissionId: Number(transmissionId),
@@ -287,7 +305,11 @@ export default function VariantModal({
               ref={nameRef}
               type="text"
               value={variantName}
-              onChange={(e) => setVariantName(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setVariantName(value);
+                if (!slugTouched) setSlug(slugifyVariantName(value));
+              }}
               placeholder="e.g. SX(O) Turbo DCT"
               className={inputClass}
               style={{
@@ -297,6 +319,30 @@ export default function VariantModal({
             />
             {errors.variantName && (
               <p className="text-[11px] font-medium text-[#D4300F] mt-1">{errors.variantName}</p>
+            )}
+          </Field>
+
+          <Field label="Slug">
+            <input
+              type="text"
+              value={slug}
+              onChange={(e) => {
+                setSlug(e.target.value.toLowerCase());
+                setSlugTouched(true);
+              }}
+              placeholder="e.g. sx-o-turbo-dct"
+              className={inputClass}
+              style={{
+                borderColor: errors.slug ? "#f0997b" : "#d6e3df",
+                boxShadow: errors.slug ? "0 0 0 2px rgba(216,90,48,0.1)" : "none",
+              }}
+            />
+            {errors.slug ? (
+              <p className="text-[11px] font-medium text-[#D4300F] mt-1">{errors.slug}</p>
+            ) : (
+              <p className="text-[10px] text-[#71827d] mt-1">
+                {slugTouched ? "Manually edited." : "Auto-syncing with variant name."}
+              </p>
             )}
           </Field>
 
