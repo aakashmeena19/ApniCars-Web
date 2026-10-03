@@ -398,6 +398,7 @@ model CarVariant {
   @@unique([modelId, variantName])
   @@unique([modelId, slug])
   @@index([modelId])
+  @@index([modelId, price], map: "car_variants_model_id_price_idx")
   @@map("car_variants")
 }
 

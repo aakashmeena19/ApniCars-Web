@@ -9,10 +9,22 @@
 - Do not invent a new structure or pattern on your own. Before creating a new file/component, check how similar things are already done in that same area (admin/backend/website) and follow that same pattern.
 - If anything about the existing structure is unclear or seems missing, ask me — do not decide on your own.
 
-## 2. No Code Changes Without Explicit Permission
-- Never make changes to the code until I clearly say: **"Yes, make the changes now."**
-- If you only need to analyze, explain, or propose a plan, that's fine — but do not edit or write any files without my clear permission first.
-- If you think something needs to be fixed or changed, first tell me WHAT needs to change and WHY, then wait for my "yes."
+## 2. Code Changes and Permission
+
+* **Small changes:** You may directly make minor code changes without asking for permission. This includes bug fixes, UI adjustments, styling improvements, small component updates, typo corrections, and other low-risk changes that do not significantly affect the existing architecture or functionality.
+
+* **Major changes:** Never make significant code changes until I explicitly say: **"Yes, make the changes now."**
+
+* Major changes include architectural modifications, database schema changes, major feature additions or removals, API restructuring, changes affecting multiple modules, and modifications that could impact existing functionality.
+
+* **Before major changes:** First explain WHAT needs to change, WHY it is necessary, and HOW you plan to implement it. Then wait for my explicit approval.
+
+* **Analysis and planning:** You may freely analyze the codebase, identify issues, explain problems, and propose solutions without making any changes.
+
+* **Important:** Always prioritize fixing the root cause, preserving existing functionality, and following established project patterns. Never make unnecessary changes or silently modify unrelated code.
+
+* If a seemingly small change turns out to require significant modifications, stop and ask for approval before proceeding.
+
 
 ## 3. Database Changes — Allowed for Claude Code, With Guardrails
 - **Claude Code may run migrations.** The old blanket ban was aimed at outside collaborators, not at this workflow.

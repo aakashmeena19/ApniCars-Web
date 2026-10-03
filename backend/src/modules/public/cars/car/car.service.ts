@@ -6,7 +6,7 @@ import { ApiError } from '@/core/errors/ApiError';
 import { resolvePublicCarCoverImage } from '@/core/utils/publicCarImage';
 import { HOME_CAR_SELECT, shapeHomeCarModel, buildHomeCarWhereAndOrderBy } from '@/modules/public/home/car/car.service';
 import type { PublicHomeCarRecord } from '@/modules/public/home/car/car.types';
-import type { CarListQueryParsed, CarsBrowseQueryParsed } from './car.validation';
+import type { CarImagesQueryParsed, CarListQueryParsed, CarsBrowseQueryParsed } from './car.validation';
 
 // Same numeric codes as compare.service.ts's FUEL_TYPE_LABELS — duplicated
 // for the same module-local reason noted there.
@@ -45,6 +45,31 @@ export const VARIANT_FEATURES_SELECT = {
         category: { select: { id: true, name: true, sortOrder: true } },
       },
     },
+  },
+} as const;
+
+const VARIANT_COMPARISON_SELECT = {
+  id: true,
+  slug: true,
+  variantName: true,
+  price: true,
+  seatingCapacity: true,
+  transmission: { select: { name: true } },
+  icePowertrains: {
+    where: { isDeleted: false },
+    orderBy: { isDefault: 'desc' as const },
+    take: 1,
+    select: { fuelType: true, displacementCc: true, powerPs: true, claimedFe: true },
+  },
+  electricPowertrains: {
+    where: { isDeleted: false },
+    orderBy: { isDefault: 'desc' as const },
+    take: 1,
+    select: { batteryCapacity: true, powerPs: true, claimedRange: true },
+  },
+  features: {
+    select: { value: true, feature: { select: { id: true, name: true } } },
+    orderBy: { featureId: 'asc' as const },
   },
 } as const;
 
@@ -280,6 +305,7 @@ export async function browseCars(filters: BrowseCarsFilters): Promise<BrowseCars
 // comparison subset); this needs the complete spec sheet.
 export interface CarDetailVariantOption {
   id: number;
+  slug: string | null;
   variantName: string;
   price: string;
   isTopSeller: boolean;
@@ -371,6 +397,7 @@ export interface CarDetailFeatureGroup {
 
 export interface CarDetailSelectedVariant {
   id: number;
+  slug: string | null;
   variantName: string;
   price: string;
   seatingCapacity: number;
@@ -382,12 +409,93 @@ export interface CarDetailSelectedVariant {
   features: CarDetailFeatureGroup[];
 }
 
+export interface CarDetailComparisonFeature {
+  id: number;
+  name: string;
+  value: string | null;
+}
+
+export interface CarDetailComparisonOption {
+  id: number;
+  slug: string;
+  variantName: string;
+  price: string;
+  priceDifference: string;
+  seatingCapacity: number;
+  transmission: string | null;
+  powertrain: {
+    type: 'ice' | 'electric';
+    fuelType: string | null;
+    displacementCc: number | null;
+    batteryCapacity: string | null;
+    powerPs: number | null;
+    claimedEfficiency: string | null;
+    claimedRange: number | null;
+  };
+  featuresAddedByCurrent: CarDetailComparisonFeature[];
+  featuresAddedByAlternative: CarDetailComparisonFeature[];
+  currentFeatureDifferenceCount: number;
+  alternativeFeatureDifferenceCount: number;
+}
+
+export interface CarDetailVariantComparison {
+  lower: CarDetailComparisonOption | null;
+  upper: CarDetailComparisonOption | null;
+}
+
+type CarDetailComparisonRecord = Prisma.CarVariantGetPayload<{ select: typeof VARIANT_COMPARISON_SELECT }>;
+type ComparisonFeatureRow = { value: string | null; feature: { id: number; name: string } };
+
+function getFeatureDifferences(source: ComparisonFeatureRow[], target: ComparisonFeatureRow[]): CarDetailComparisonFeature[] {
+  const targetById = new Map(target.map((row) => [row.feature.id, row.value]));
+  return source
+    .filter((row) => !targetById.has(row.feature.id) || targetById.get(row.feature.id) !== row.value)
+    .map((row) => ({ id: row.feature.id, name: row.feature.name, value: row.value }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function shapeVariantComparisonOption(
+  candidate: CarDetailComparisonRecord,
+  currentPrice: Prisma.Decimal,
+  currentFeatures: ComparisonFeatureRow[],
+): CarDetailComparisonOption {
+  const ice = candidate.icePowertrains[0];
+  const electric = candidate.electricPowertrains[0];
+  const featuresAddedByCurrent = getFeatureDifferences(currentFeatures, candidate.features);
+  const featuresAddedByAlternative = getFeatureDifferences(candidate.features, currentFeatures);
+
+  return {
+    id: candidate.id,
+    slug: candidate.slug!,
+    variantName: candidate.variantName,
+    price: candidate.price.toString(),
+    priceDifference: candidate.price.minus(currentPrice).toString(),
+    seatingCapacity: candidate.seatingCapacity,
+    transmission: candidate.transmission?.name ?? null,
+    powertrain: {
+      type: electric ? 'electric' : 'ice',
+      fuelType: ice ? (FUEL_TYPE_LABELS[ice.fuelType] ?? null) : null,
+      displacementCc: ice?.displacementCc ?? null,
+      batteryCapacity: electric?.batteryCapacity?.toString() ?? null,
+      powerPs: electric?.powerPs ?? ice?.powerPs ?? null,
+      claimedEfficiency: ice?.claimedFe?.toString() ?? null,
+      claimedRange: electric?.claimedRange ?? null,
+    },
+    featuresAddedByCurrent: featuresAddedByCurrent.slice(0, 6),
+    featuresAddedByAlternative: featuresAddedByAlternative.slice(0, 6),
+    currentFeatureDifferenceCount: featuresAddedByCurrent.length,
+    alternativeFeatureDifferenceCount: featuresAddedByAlternative.length,
+  };
+}
+
 export interface CarDetailImage {
   id: number;
   imageUrl: string;
   isPrimary: boolean;
   angle: string | null;
   colorId: number | null;
+  category: string | null;
+  caption: string | null;
 }
 
 export interface CarDetailColor {
@@ -410,17 +518,24 @@ export interface CarDetailResult {
   priceMax: string | null;
   ratingAvg: string | null;
   coverImageUrl: string | null;
+  has360View: boolean;
   variantOptions: CarDetailVariantOption[];
   // Total variant count for the model — variantOptions above is capped to
   // VARIANT_OPTIONS_PREVIEW_LIMIT, so the page needs this to know whether
   // a "View All" expansion has anything more to fetch.
   variantCount: number;
   selectedVariant: CarDetailSelectedVariant | null;
+  variantComparison: CarDetailVariantComparison | null;
   images: CarDetailImage[];
   colors: CarDetailColor[];
 }
 
-export async function getCarDetail(brandSlug: string, modelSlug: string, variantId?: number): Promise<CarDetailResult> {
+export async function getCarDetail(
+  brandSlug: string,
+  modelSlug: string,
+  variantId?: number,
+  variantSlug?: string,
+): Promise<CarDetailResult> {
   const car = await prisma.carModel.findFirst({
     where: { slug: modelSlug, brand: { slug: brandSlug, isActive: true } },
     select: {
@@ -436,15 +551,21 @@ export async function getCarDetail(brandSlug: string, modelSlug: string, variant
       ratingAvg: true,
       coverImageUrl: true,
       variants: {
-        select: { id: true, variantName: true, price: true, isTopSeller: true },
+        select: { id: true, slug: true, variantName: true, price: true, isTopSeller: true },
         orderBy: [{ isTopSeller: 'desc' }, { price: 'asc' }],
         take: VARIANT_OPTIONS_PREVIEW_LIMIT,
       },
-      _count: { select: { variants: true } },
+      _count: {
+        select: {
+          variants: true,
+          images: { where: { category: '360' } },
+        },
+      },
       images: {
         where: { model: { launchStatus: { not: 'upcoming' } } },
-        select: { id: true, imageUrl: true, isPrimary: true, angle: true, colorId: true },
-        orderBy: { isPrimary: 'desc' },
+        select: { id: true, imageUrl: true, isPrimary: true, angle: true, colorId: true, category: true, caption: true },
+        orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { id: 'asc' }],
+        take: 6,
       },
       colors: {
         where: { model: { launchStatus: { not: 'upcoming' } } },
@@ -468,14 +589,16 @@ export async function getCarDetail(brandSlug: string, modelSlug: string, variant
     throw ApiError.notFound(`Car "${brandSlug}/${modelSlug}" not found`);
   }
 
-  const chosenVariantId = variantId ?? car.variants[0]?.id;
+  const chosenVariantId = variantSlug ? undefined : (variantId ?? car.variants[0]?.id);
   let selectedVariant: CarDetailSelectedVariant | null = null;
+  let variantComparison: CarDetailVariantComparison | null = null;
 
-  if (chosenVariantId) {
+  if (chosenVariantId || variantSlug) {
     const variant = await prisma.carVariant.findFirst({
-      where: { id: chosenVariantId, modelId: car.id },
+      where: variantSlug ? { slug: variantSlug, modelId: car.id } : { id: chosenVariantId, modelId: car.id },
       select: {
         id: true,
+        slug: true,
         variantName: true,
         price: true,
         seatingCapacity: true,
@@ -563,8 +686,37 @@ export async function getCarDetail(brandSlug: string, modelSlug: string, variant
     const ice = variant.icePowertrains[0];
     const electric = variant.electricPowertrains[0];
 
+    if (variantSlug) {
+      const [lower, upper] = await Promise.all([
+        prisma.carVariant.findFirst({
+          where: {
+            modelId: car.id,
+            slug: { not: null },
+            OR: [{ price: { lt: variant.price } }, { price: variant.price, id: { lt: variant.id } }],
+          },
+          select: VARIANT_COMPARISON_SELECT,
+          orderBy: [{ price: 'desc' }, { id: 'desc' }],
+        }),
+        prisma.carVariant.findFirst({
+          where: {
+            modelId: car.id,
+            slug: { not: null },
+            OR: [{ price: { gt: variant.price } }, { price: variant.price, id: { gt: variant.id } }],
+          },
+          select: VARIANT_COMPARISON_SELECT,
+          orderBy: [{ price: 'asc' }, { id: 'asc' }],
+        }),
+      ]);
+
+      variantComparison = {
+        lower: lower ? shapeVariantComparisonOption(lower, variant.price, variant.features) : null,
+        upper: upper ? shapeVariantComparisonOption(upper, variant.price, variant.features) : null,
+      };
+    }
+
     selectedVariant = {
       id: variant.id,
+      slug: variant.slug,
       variantName: variant.variantName,
       price: variant.price.toString(),
       seatingCapacity: variant.seatingCapacity,
@@ -658,14 +810,17 @@ export async function getCarDetail(brandSlug: string, modelSlug: string, variant
     priceMax: car.priceMax?.toString() ?? null,
     ratingAvg: car.ratingAvg?.toString() ?? null,
     coverImageUrl: resolvePublicCarCoverImage(car),
+    has360View: car._count.images > 0,
     variantOptions: car.variants.map((v) => ({
       id: v.id,
+      slug: v.slug,
       variantName: v.variantName,
       price: v.price.toString(),
       isTopSeller: v.isTopSeller,
     })),
     variantCount: car._count.variants,
     selectedVariant,
+    variantComparison,
     images: car.images,
     colors: car.colors.map((c) => ({ ...c, additionalCost: c.additionalCost?.toString() ?? null })),
   };
@@ -681,7 +836,7 @@ export async function getCarVariants(brandSlug: string, modelSlug: string): Prom
     where: { slug: modelSlug, brand: { slug: brandSlug, isActive: true } },
     select: {
       variants: {
-        select: { id: true, variantName: true, price: true, isTopSeller: true },
+        select: { id: true, slug: true, variantName: true, price: true, isTopSeller: true },
         orderBy: [{ isTopSeller: 'desc' }, { price: 'asc' }],
       },
     },
@@ -691,6 +846,7 @@ export async function getCarVariants(brandSlug: string, modelSlug: string): Prom
 
   return car.variants.map((v) => ({
     id: v.id,
+    slug: v.slug,
     variantName: v.variantName,
     price: v.price.toString(),
     isTopSeller: v.isTopSeller,
@@ -761,24 +917,26 @@ export interface CarImagesResult {
   brand: { name: string; slug: string };
   images: CarDetailImage[];
   colors: CarDetailColor[];
+  categories: string[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
 // "/tata-motors-cars/nexon/photos" — a dedicated lean endpoint (name +
 // images + colors) so the photos page doesn't have to pull the full
 // detail payload (variants/specs/features) just to render a gallery.
-export async function getCarImages(brandSlug: string, modelSlug: string): Promise<CarImagesResult> {
+export async function getCarImages(
+  brandSlug: string,
+  modelSlug: string,
+  query: CarImagesQueryParsed,
+): Promise<CarImagesResult> {
   const car = await prisma.carModel.findFirst({
     where: { slug: modelSlug, brand: { slug: brandSlug, isActive: true } },
     select: {
+      id: true,
       name: true,
       launchStatus: true,
       brand: { select: { name: true, slug: true } },
       bodyType: { select: { upcomingPlaceholderImageUrl: true } },
-      images: {
-        where: { model: { launchStatus: { not: 'upcoming' } } },
-        select: { id: true, imageUrl: true, isPrimary: true, angle: true, colorId: true },
-        orderBy: { isPrimary: 'desc' },
-      },
       colors: {
         where: { model: { launchStatus: { not: 'upcoming' } } },
         select: {
@@ -794,15 +952,84 @@ export async function getCarImages(brandSlug: string, modelSlug: string): Promis
 
   if (!car) throw ApiError.notFound(`Car "${brandSlug}/${modelSlug}" not found`);
   const placeholder = car.bodyType?.upcomingPlaceholderImageUrl;
+  if (car.launchStatus === 'upcoming') {
+    return {
+      name: car.name,
+      brand: car.brand,
+      images: placeholder
+        ? [{ id: 0, imageUrl: placeholder, isPrimary: true, angle: null, colorId: null, category: null, caption: null }]
+        : [],
+      colors: [],
+      categories: [],
+      pagination: { page: 1, limit: query.limit, total: placeholder ? 1 : 0, totalPages: 1 },
+    };
+  }
+  const imageWhere: Prisma.CarImageWhereInput = {
+    modelId: car.id,
+    ...(query.category ? { category: query.category } : {}),
+  };
+  const [images, total, categoryRows] = await Promise.all([
+        prisma.carImage.findMany({
+          where: imageWhere,
+          select: { id: true, imageUrl: true, isPrimary: true, angle: true, colorId: true, category: true, caption: true },
+          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { id: 'asc' }],
+          skip: (query.page - 1) * query.limit,
+          take: query.limit,
+        }),
+        prisma.carImage.count({ where: imageWhere }),
+        prisma.carImage.findMany({
+          where: { modelId: car.id, category: { not: null } },
+          distinct: ['category'],
+          select: { category: true },
+          orderBy: { category: 'asc' },
+        }),
+      ]);
   return {
     name: car.name,
     brand: car.brand,
-    images:
-      car.launchStatus === 'upcoming' && placeholder
-        ? [{ id: 0, imageUrl: placeholder, isPrimary: true, angle: null, colorId: null }]
-        : car.images,
+    images,
     colors: car.colors.map((c) => ({ ...c, additionalCost: c.additionalCost?.toString() ?? null })),
+    categories: categoryRows.flatMap((row) => row.category ? [row.category] : []),
+    pagination: {
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.ceil(total / query.limit) || 1,
+    },
   };
+}
+
+export interface Car360ImagesResult {
+  name: string;
+  slug: string;
+  brand: { name: string; slug: string };
+  frames: { id: number; imageUrl: string; angle: string | null }[];
+}
+
+export async function getCar360Images(brandSlug: string, modelSlug: string, preview = false): Promise<Car360ImagesResult> {
+  const car = await prisma.carModel.findFirst({
+    where: { slug: modelSlug, brand: { slug: brandSlug, isActive: true } },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      brand: { select: { name: true, slug: true } },
+    },
+  });
+
+  if (!car) throw ApiError.notFound(`Car "${brandSlug}/${modelSlug}" not found`);
+
+  const allFrames = await prisma.carImage.findMany({
+    where: { modelId: car.id, category: '360' },
+    select: { id: true, imageUrl: true, angle: true },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  });
+
+  const frames = preview && allFrames.length > 10
+    ? Array.from({ length: 10 }, (_, index) => allFrames[Math.floor((index * allFrames.length) / 10)])
+    : allFrames;
+
+  return { name: car.name, slug: car.slug, brand: car.brand, frames };
 }
 
 export interface CarFaqResult {
@@ -863,4 +1090,44 @@ export async function getCarNews(brandSlug: string, modelSlug: string, limit = 6
   });
 
   return news.map((news) => ({ ...news, publishedAt: news.publishedAt?.toISOString() ?? null }));
+}
+
+// Suggestions for the model and variant pages. Candidate retrieval stays
+// broad enough to avoid empty rails, then the small cached result is ranked
+// by body type, brand and price proximity in memory.
+export async function getSimilarCars(brandSlug: string, modelSlug: string): Promise<PublicHomeCarRecord[]> {
+  const source = await prisma.carModel.findFirst({
+    where: { slug: modelSlug, brand: { slug: brandSlug, isActive: true } },
+    select: { id: true, brandId: true, bodyTypeId: true, priceMin: true },
+  });
+
+  if (!source) throw ApiError.notFound(`Car "${brandSlug}/${modelSlug}" not found`);
+
+  const candidates = await prisma.carModel.findMany({
+    where: {
+      id: { not: source.id },
+      launchStatus: 'available',
+      variants: { some: {} },
+      OR: [
+        ...(source.bodyTypeId ? [{ bodyTypeId: source.bodyTypeId }] : []),
+        { brandId: source.brandId },
+      ],
+    },
+    select: HOME_CAR_SELECT,
+    orderBy: [{ ratingAvg: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+    take: 16,
+  });
+
+  const sourcePrice = Number(source.priceMin ?? 0);
+  return candidates
+    .map((car) => ({
+      car,
+      score:
+        (source.bodyTypeId && car.bodyType?.id === source.bodyTypeId ? 3 : 0) +
+        (car.brand.id === source.brandId ? 1 : 0) -
+        (sourcePrice > 0 && car.priceMin ? Math.min(Math.abs(Number(car.priceMin) - sourcePrice) / sourcePrice, 2) : 0),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .map(({ car }) => shapeHomeCarModel(car));
 }

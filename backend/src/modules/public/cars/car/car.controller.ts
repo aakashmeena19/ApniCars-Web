@@ -7,7 +7,10 @@ import {
   carListQuerySchema,
   carsBrowseQuerySchema,
   carDetailParamSchema,
+  carVariantDetailParamSchema,
   carDetailQuerySchema,
+  carImagesQuerySchema,
+  car360ImagesQuerySchema,
   modelsByBrandQuerySchema,
   variantsByModelQuerySchema,
 } from './car.validation';
@@ -72,8 +75,17 @@ export async function getCarDetail(req: Request, res: Response) {
 // variants/specs/features just to show a gallery.
 export async function getCarImages(req: Request, res: Response) {
   const params = carDetailParamSchema.parse(req.params);
-  const result = await carService.getCarImages(params.brandSlug, params.modelSlug);
+  const query = carImagesQuerySchema.parse(req.query);
+  const result = await carService.getCarImages(params.brandSlug, params.modelSlug, query);
   return sendSuccess(res, result, 'Car images fetched successfully');
+}
+
+// GET /api/public/v1/cars/:brandSlug/:modelSlug/360-images
+export async function getCar360Images(req: Request, res: Response) {
+  const params = carDetailParamSchema.parse(req.params);
+  const query = car360ImagesQuerySchema.parse(req.query);
+  const result = await carService.getCar360Images(params.brandSlug, params.modelSlug, query.preview);
+  return sendSuccess(res, result, 'Car 360 images fetched successfully');
 }
 
 // GET /api/public/v1/cars/:brandSlug/:modelSlug/faqs
@@ -91,6 +103,13 @@ export async function getCarNews(req: Request, res: Response) {
   return sendSuccess(res, result, 'Car news fetched successfully');
 }
 
+// GET /api/public/v1/cars/:brandSlug/:modelSlug/similar
+export async function getSimilarCars(req: Request, res: Response) {
+  const params = carDetailParamSchema.parse(req.params);
+  const result = await carService.getSimilarCars(params.brandSlug, params.modelSlug);
+  return sendSuccess(res, result, 'Similar cars fetched successfully');
+}
+
 // GET /api/public/v1/cars/:brandSlug/:modelSlug/variants — full variant
 // list for the "View All" expansion in the model page's Variants section
 // and the Write Review form's variant picker, kept separate so
@@ -99,4 +118,11 @@ export async function getCarVariants(req: Request, res: Response) {
   const params = carDetailParamSchema.parse(req.params);
   const result = await carService.getCarVariants(params.brandSlug, params.modelSlug);
   return sendSuccess(res, result, 'Car variants fetched successfully');
+}
+
+// GET /api/public/v1/cars/:brandSlug/:modelSlug/:variantSlug
+export async function getCarVariantDetail(req: Request, res: Response) {
+  const params = carVariantDetailParamSchema.parse(req.params);
+  const result = await carService.getCarDetail(params.brandSlug, params.modelSlug, undefined, params.variantSlug);
+  return sendSuccess(res, result, 'Car variant detail fetched successfully');
 }

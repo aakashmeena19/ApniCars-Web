@@ -19,13 +19,13 @@ import { getBrandCars, getBrandNews, getBrandUpcomingCars, getBrandsWithCounts }
 import type { BrandCarsQuery } from "@/lib/brands/brand.types";
 import { formatPrice } from "@/lib/home/home.format";
 import { getPublicUploadUrl } from "@/lib/home/home.api";
+import { extractBrandSlug } from "@/lib/cars/car.urls";
 
 export const revalidate = 180;
 
 type PageProps = { params: Promise<{ brandCarsSlug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 const sortValues = new Set(["popularity", "price-asc", "price-desc", "rating"]);
 
-function extractBrandSlug(value: string) { return value.endsWith("-cars") ? value.slice(0, -5) : null; }
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
 function splitValues(value: string | undefined) { return value?.split(",").filter(Boolean) ?? []; }
 function buildQuery(search: Record<string, string | string[] | undefined>): BrandCarsQuery {

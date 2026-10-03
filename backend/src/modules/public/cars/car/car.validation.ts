@@ -54,12 +54,29 @@ export const carDetailParamSchema = z.object({
   modelSlug: z.string().trim().min(1),
 });
 
+export const carVariantDetailParamSchema = carDetailParamSchema.extend({
+  variantSlug: z.string().trim().min(1),
+});
+
 export const carDetailQuerySchema = z.object({
   variant: z.coerce.number().int().positive().optional(),
 });
 
+export const carImagesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(48).default(24),
+  category: z.string().trim().min(1).max(80).optional(),
+});
+
+export const car360ImagesQuerySchema = z.object({
+  preview: z.coerce.boolean().default(false),
+});
+
 export type CarDetailParamParsed = z.infer<typeof carDetailParamSchema>;
+export type CarVariantDetailParamParsed = z.infer<typeof carVariantDetailParamSchema>;
 export type CarDetailQueryParsed = z.infer<typeof carDetailQuerySchema>;
+export type CarImagesQueryParsed = z.infer<typeof carImagesQuerySchema>;
+export type Car360ImagesQueryParsed = z.infer<typeof car360ImagesQuerySchema>;
 
 // Lightweight picker lookups (EMI calculator's Brand→Model→Variant flow).
 export const modelsByBrandQuerySchema = z.object({

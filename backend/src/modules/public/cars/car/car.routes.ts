@@ -15,9 +15,12 @@ import {
   getVariantsByModel,
   getCarDetail,
   getCarImages,
+  getCar360Images,
   getCarFaqs,
   getCarNews,
+  getSimilarCars,
   getCarVariants,
+  getCarVariantDetail,
 } from './car.controller';
 
 const router = Router();
@@ -35,8 +38,13 @@ router.get('/:brandSlug/:modelSlug', publicCache(180), asyncHandler(getCarDetail
 // FAQs section each get their own lean payload instead of riding on the
 // full getCarDetail response.
 router.get('/:brandSlug/:modelSlug/images', publicCache(180), asyncHandler(getCarImages));
+router.get('/:brandSlug/:modelSlug/360-images', publicCache(180), asyncHandler(getCar360Images));
 router.get('/:brandSlug/:modelSlug/faqs', publicCache(180), asyncHandler(getCarFaqs));
 router.get('/:brandSlug/:modelSlug/news', publicCache(180), asyncHandler(getCarNews));
+router.get('/:brandSlug/:modelSlug/similar', publicCache(180), asyncHandler(getSimilarCars));
 router.get('/:brandSlug/:modelSlug/variants', publicCache(180), asyncHandler(getCarVariants));
+// Keep the dynamic third segment last so it cannot capture the lean
+// images/faqs/news/variants endpoints above.
+router.get('/:brandSlug/:modelSlug/:variantSlug', publicCache(180), asyncHandler(getCarVariantDetail));
 
 export default router;

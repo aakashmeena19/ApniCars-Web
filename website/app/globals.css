@@ -134,6 +134,12 @@ label[for] {
 }
 
 @media (min-width: 1024px) {
+  .model-sticky-sidebar {
+    position: sticky;
+    top: var(--model-sidebar-top, 164px);
+    align-self: start;
+  }
+
   .page-shell {
     width: min(100% - 96px, 1240px);
   }
