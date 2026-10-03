@@ -1,18 +1,41 @@
+# Dependencies
 node_modules/
 **/node_modules/
+
+# Environment files and secrets
 .env
 .env.*
 !.env.example
 **/.env
 **/.env.*
 !**/.env.example
+
+# Build output and caches
 dist/
 build/
-.DS_Store
+**/.next/
+**/out/
+**/coverage/
+**/.turbo/
+**/.cache/
+*.tsbuildinfo
+
+# Runtime files
+*.log
 *.zip
 __pycache__/
 *.pyc
 .venv/
 venv/
-carwale-scrapper/logs/
-carwale-scrapper/state/checkpoint.json
+
+# Generated uploads; keep only directory placeholders
+backend/uploads/**/*
+!backend/uploads/**/.gitkeep
+
+# Local tooling and repository backups
+/.local-git-backups/
+.DS_Store
+Thumbs.db
+
+# The scraper is maintained outside this repository
+/carwale-scrapper/

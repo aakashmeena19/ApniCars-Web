@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --background: #f6f8f6;
+  --foreground: #0d1c17;
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  --background: #071813;
+  --foreground: #f3f7f5;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-apnicars), Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-apnicars), Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-apnicars), Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+  text-wrap: balance;
+  letter-spacing: 0;
+}
+
+body h1[class],
+body h2[class] {
+  font-weight: 620;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+body h3[class] {
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+header nav,
+main button,
+main a[class*="font-semibold"],
+main a[class*="font-bold"] {
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+body [class*="tracking-"] {
+  letter-spacing: 0;
+}
+
+/* Keep compact automotive UI copy legible without enlarging its containers. */
+main .text-\[7px\] {
+  font-size: 9px;
+}
+
+main .text-\[8px\] {
+  font-size: 10px;
+}
+
+main .text-\[9px\],
+main .text-\[10px\] {
+  font-size: 11px;
+}
+
+footer .text-\[9px\] {
+  font-size: 10px;
+}
+
+footer .text-\[10px\] {
+  font-size: 11px;
+}
+
+button,
+a,
+summary,
+select,
+[role="button"],
+label[for] {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+::selection {
+  background: #cfe7de;
+  color: #071426;
+}
+
+.page-shell {
+  width: min(100% - 32px, 1240px);
+  margin-inline: auto;
+}
+
+@media (max-width: 639px) {
+  main > section:first-child h1 {
+    max-width: 340px;
+    white-space: normal;
+  }
+
+  main > section:first-child .max-w-\[500px\] {
+    max-width: 280px;
+  }
+}
+
+@media (min-width: 640px) {
+  .page-shell {
+    width: min(100% - 56px, 1240px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-shell {
+    width: min(100% - 96px, 1240px);
+  }
+
+  #all-models > .page-shell > .grid {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+}
+
+@keyframes story-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

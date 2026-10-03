@@ -1,0 +1,17 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, Bell, CalendarDays, CarFront } from "lucide-react";
+import { useRef } from "react";
+import SliderArrows from "@/components/common/SliderArrows";
+import { scrollByCard } from "@/components/common/scrollByCard";
+import { formatLaunchDate, formatPriceRange } from "@/lib/home/home.format";
+import { getPublicUploadUrl } from "@/lib/home/home.api";
+import type { HomeCar } from "@/lib/home/home.types";
+
+export default function UpcomingCarsCarousel({ cars }: { cars: HomeCar[] }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  return <section className="bg-[#f4f7f4] py-12 dark:bg-[#081b16] sm:py-14 lg:py-16"><div className="page-shell"><div className="flex items-end justify-between gap-5"><div><p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#688078]">Coming next</p><h2 className="mt-2 text-[26px] font-semibold text-[#0c1a15] dark:text-white sm:text-[31px]">Upcoming cars to watch</h2><p className="mt-3 max-w-[500px] text-[11px] leading-5 text-[#68746e] dark:text-white/55">Models expected to shape the next wave of new car launches.</p></div><div className="hidden items-center gap-2 sm:flex"><SliderArrows onPrevious={() => scrollByCard(scroller.current, "left")} onNext={() => scrollByCard(scroller.current, "right")} /><Link href="/upcoming-cars" className="ml-2 flex items-center gap-2 text-[10px] font-semibold text-[#31574b] dark:text-white/70">View all <ArrowRight size={13} /></Link></div></div><div ref={scroller} className="mt-7 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{cars.map((car) => { const image = getPublicUploadUrl(car.coverImageUrl); return <article key={car.id} className="group w-[86vw] max-w-[390px] shrink-0 snap-start overflow-hidden rounded-[8px] border border-black/[0.08] bg-white shadow-[0_8px_24px_rgba(8,31,25,.055)] dark:border-white/10 dark:bg-[#102720] sm:w-[calc((100%_-_16px)/2)] sm:max-w-none lg:w-[calc((100%_-_32px)/3)]"><div className="relative aspect-[16/8.5] overflow-hidden bg-[#e9eeeb] dark:bg-[#18342b]">{image ? <Image src={image} alt={`${car.brand.name} ${car.name} preview`} fill sizes="(max-width: 640px) 86vw, 33vw" className="object-contain p-3 transition-transform duration-700 group-hover:scale-[1.035]" /> : <div className="grid h-full place-items-center text-[#6f817a]"><CarFront size={38} /></div>}<span className="absolute left-3 top-3 rounded-full bg-[#c9ff49] px-2.5 py-1 text-[9px] font-semibold text-[#173027]">Upcoming</span></div><div className="p-4"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><h3 className="truncate text-[15px] font-semibold text-[#15251e] dark:text-white">{car.brand.name} {car.name}</h3><p className="mt-1 text-[13px] font-semibold text-[#31564a] dark:text-white/85">{formatPriceRange(car)}</p></div><Link href={`/model/${car.slug}`} aria-label={`View ${car.name}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#b5c7ae] text-[#31584b] hover:bg-[#173a30] hover:text-white dark:text-white"><Bell size={14} /></Link></div><p className="mt-3 flex items-center gap-2 border-t border-black/[0.07] pt-3 text-[10px] font-medium text-[#75817c] dark:border-white/10 dark:text-white/50"><CalendarDays size={13} className="text-[#6e8913]" />{formatLaunchDate(car.expectedLaunchDate)}</p></div></article>; })}</div></div></section>;
+}
+
